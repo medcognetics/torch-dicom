@@ -1,6 +1,6 @@
 .PHONY: clean clean-env check quality style tag-version test env upload upload-test
 
-PROJECT=project
+PROJECT=torch_dicom
 PY_VER=python3.10
 PY_VER_SHORT=py$(shell echo $(PY_VER) | sed 's/[^0-9]*//g')
 QUALITY_DIRS=$(PROJECT) tests setup.py
