@@ -1,9 +1,10 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from .dicom import DUMMY_PATH, DicomExample, DicomInput, DicomPathDataset, DicomPathInput
+from .chain import AggregateDataset, AggregateInput
+from .dicom import DUMMY_PATH, DicomExample, DicomInput, DicomPathDataset, DicomPathInput, collate_fn
 from .path import PathDataset, PathInput
-from .tensor import TensorInput, TensorPathDataset, TensorPathInput
+from .tensor import TensorExample, TensorInput, TensorPathDataset, TensorPathInput
 
 
 __all__ = [
@@ -17,4 +18,8 @@ __all__ = [
     "TensorInput",
     "TensorPathInput",
     "TensorPathDataset",
+    "AggregateInput",
+    "AggregateDataset",
+    "collate_fn",
+    "TensorExample",
 ]
