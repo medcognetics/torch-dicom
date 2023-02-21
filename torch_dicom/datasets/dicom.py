@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 import logging
 import warnings
+from copy import deepcopy
 from dataclasses import replace
 from itertools import islice
 from pathlib import Path
@@ -16,6 +17,7 @@ from typing import (
     Optional,
     Sequence,
     Tuple,
+    Type,
     TypedDict,
     TypeVar,
     Union,
@@ -37,18 +39,20 @@ from .path import PathDataset, PathInput
 
 DUMMY_PATH: Final[Path] = Path("dummy.dcm")
 D = TypeVar("D", bound=Union[Dict[str, Any], TypedDict])
+LIST_COLLATE_TYPES: Final = (Path, FileRecord, Dicom)
 
 
 class DicomExample(TypedDict):
     img: Tensor
     img_size: Tensor
     record: DicomImageFileRecord
+    dicom: Dicom
 
 
 def collate_fn(batch: Sequence[D], default_fallback: bool = True) -> D:
     r"""Collate function that supports Paths and FileRecords.
     All inputs should be dictionaries with the same keys. Any key that is a
-    Path or FileRecord will be joined as a list. If all inputs are not dictionaries
+    Path, DICOM, or FileRecord will be joined as a list. If all inputs are not dictionaries
     or there is an error, and default_fallback is True, the default collate function
     will be used.
 
@@ -68,33 +72,36 @@ def collate_fn(batch: Sequence[D], default_fallback: bool = True) -> D:
             raise TypeError("All inputs must be dictionaries.")
 
     try:
-        # manually collate Paths and FileRecords
-        paths: Dict[str, List[Path]] = {}
-        records: Dict[str, List[FileRecord]] = {}
+        manual: Dict[Type, Dict[str, List[Any]]] = {k: {} for k in LIST_COLLATE_TYPES}
         proto = batch[0]
+
         # ensure keys are copied since we will be mutating
         for key in set(proto.keys()):
+            # apply to every element in the batch
             for elem in batch:
                 assert isinstance(elem, dict)
                 elem = cast(Dict[str, Any], elem)
+
+                # read the value of the current key for this batch element
                 if key not in elem:
                     raise KeyError(f"Key {key} not found in {elem}")
                 value = elem[key]
-                if isinstance(value, Path):
-                    paths.setdefault(key, []).append(value)
-                    elem.pop(key)
-                elif isinstance(value, FileRecord):
-                    records.setdefault(key, []).append(value)
-                    elem.pop(key)
 
-        # we should have removed all batch elem values that are Paths or FileRecords
-        assert not any(isinstance(v, Path) for elem in batch for v in elem.values())
-        assert not any(isinstance(v, FileRecord) for elem in batch for v in elem.values())
+                # check if the value needs manual collation.
+                # if so, add it to the manual collation container and remove it from the batch element
+                for dtype, container in manual.items():
+                    if isinstance(value, dtype):
+                        container.setdefault(key, []).append(value)
+                        elem.pop(key)
+                        break
 
-        # call default collate and merge with the manually collated Paths and FileRecords
+        # we should have removed all batch elem values that are being handled manually
+        assert not any(isinstance(v, LIST_COLLATE_TYPES) for elem in batch for v in elem.values())
+
+        # call default collate and merge with the manually collated dtypes
         result = default_collate(cast(List[Any], batch))
-        result.update(records)
-        result.update(paths)
+        for v in manual.values():
+            result.update(v)
 
         return result
 
@@ -108,7 +115,7 @@ def collate_fn(batch: Sequence[D], default_fallback: bool = True) -> D:
 
 def filter_collatable_types(example: D) -> D:
     r"""Filters out non-collatable types from a dictionary."""
-    result = {k: v for k, v in example.items() if isinstance(v, (Tensor, list, str, Path, FileRecord))}
+    result = {k: v for k, v in example.items() if isinstance(v, (Tensor, list, str, *LIST_COLLATE_TYPES))}
     return cast(D, result)
 
 
@@ -237,12 +244,22 @@ class DicomInput(IterableDataset):
             pixels = F.interpolate(pixels.unsqueeze_(0), img_size, mode="nearest").squeeze_(0)
 
         rec = DicomImageFileRecord.from_dicom(DUMMY_PATH, dcm)
+
         # from_dicom will make DUMMY_PATH absolute, but we want it relative
         rec = replace(rec, path=DUMMY_PATH)
+
+        # Copy the dicom object to avoid modifying the original and remove the pixel data.
+        # We first do a shallow copy to remove pixel data followed by a deep copy.
+        dcm = dcm.copy()
+        delattr(dcm, "PixelData")
+        delattr(dcm, "_pixel_array")
+        dcm = deepcopy(dcm)
+
         result = {
             "img": pixels,
             "img_size": img_size_tensor,
             "record": rec,
+            "dicom": dcm,
         }
         return cast(DicomExample, result)
 

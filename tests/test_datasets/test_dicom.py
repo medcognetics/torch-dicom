@@ -6,6 +6,7 @@ from typing import ClassVar
 import pytest
 import torch
 from dicom_utils.container import DicomImageFileRecord
+from dicom_utils.dicom import Dicom
 from dicom_utils.dicom_factory import DicomFactory
 from torch import Tensor
 from torch.utils.data import DataLoader
@@ -50,6 +51,9 @@ class TestDicomInput:
             assert isinstance(example["img_size"], Tensor) and example["img_size"].shape == (2,)
             assert isinstance(example["record"], DicomImageFileRecord)
             assert example["record"].path == DUMMY_PATH
+            assert isinstance(example["dicom"], Dicom), "Dicom object not returned"
+            assert not example["dicom"].get("PixelData", None), "PixelData not removed"
+            assert not example["dicom"].get("pixel_array", None), "pixel_array not removed"
         assert seen == 12
 
     def test_collate(self, dataset_input):
@@ -61,6 +65,7 @@ class TestDicomInput:
         assert isinstance(batch["img"], Tensor) and batch["img"].shape == (2, 1, 2048, 1536)
         assert isinstance(batch["img_size"], Tensor) and batch["img_size"].shape == (2, 2)
         assert isinstance(batch["record"], list) and len(batch["record"]) == 2
+        assert isinstance(batch["dicom"], list) and len(batch["dicom"]) == 2
         assert all(isinstance(r, DicomImageFileRecord) for r in batch["record"])
         assert all(b.path == DUMMY_PATH for b in batch["record"])
 
@@ -95,6 +100,9 @@ class TestDicomPathInput(TestDicomInput):
             assert isinstance(example["img_size"], Tensor) and example["img_size"].shape == (2,)
             assert isinstance(example["record"], DicomImageFileRecord)
             assert example["record"].path == dataset_input[i]
+            assert isinstance(example["dicom"], Dicom), "Dicom object not returned"
+            assert not example["dicom"].get("PixelData", None), "PixelData not removed"
+            assert not example["dicom"].get("pixel_array", None), "pixel_array not removed"
         assert seen == 12
 
     def test_collate(self, dataset_input):
@@ -106,6 +114,7 @@ class TestDicomPathInput(TestDicomInput):
         assert isinstance(batch["img"], Tensor) and batch["img"].shape == (2, 1, 2048, 1536)
         assert isinstance(batch["img_size"], Tensor) and batch["img_size"].shape == (2, 2)
         assert isinstance(batch["record"], list) and len(batch["record"]) == 2
+        assert isinstance(batch["dicom"], list) and len(batch["dicom"]) == 2
         assert all(isinstance(r, DicomImageFileRecord) for r in batch["record"])
         assert [b.path for b in batch["record"]] == dataset_input[:2]
 
