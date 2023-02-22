@@ -3,7 +3,6 @@ requires = ["setuptools>=42", "wheel"]   # PEP 508 specifications.
 build-backend = "setuptools.build_meta"
 
 [tool.autoflake]
-check = true
 remove-all-unused-imports = true
 remove-unused-variables = true
 files = ["torch_dicom", "tests"]
