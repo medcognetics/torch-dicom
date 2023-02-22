@@ -35,12 +35,14 @@ class TestDicomInput:
         assert out.is_floating_point()
         assert out.min() == 0 and out.max() == 1
 
-    def test_iter(self, dataset_input):
-        ds = iter(self.TEST_CLASS(dataset_input))
+    @pytest.mark.parametrize("normalize", [True, False])
+    def test_iter(self, dataset_input, normalize):
+        ds = iter(self.TEST_CLASS(dataset_input, normalize=normalize))
         seen = 0
         for example in ds:
             seen += 1
-            assert example["img"].shape == (1, 2048, 1536) and example["img"].dtype == torch.float
+            assert example["img"].shape == (1, 2048, 1536)
+            assert example["img"].dtype == (torch.float if normalize else torch.int32)
             assert isinstance(example["img_size"], Tensor) and example["img_size"].shape == (2,)
             assert isinstance(example["record"], DicomImageFileRecord)
             assert example["record"].path == DUMMY_PATH
@@ -83,13 +85,15 @@ class TestDicomPathInput(TestDicomInput):
     def dataset_input(self, file_iterator):
         return file_iterator
 
-    def test_iter(self, dataset_input):
+    @pytest.mark.parametrize("normalize", [True, False])
+    def test_iter(self, dataset_input, normalize):
         dataset_input = list(dataset_input)
-        ds = iter(self.TEST_CLASS(dataset_input))
+        ds = iter(self.TEST_CLASS(dataset_input, normalize=normalize))
         seen = 0
         for i, example in enumerate(ds):
             seen += 1
-            assert example["img"].shape == (1, 2048, 1536) and example["img"].dtype == torch.float
+            assert example["img"].shape == (1, 2048, 1536)
+            assert example["img"].dtype == (torch.float if normalize else torch.int32)
             assert isinstance(example["img_size"], Tensor) and example["img_size"].shape == (2,)
             assert isinstance(example["record"], DicomImageFileRecord)
             assert example["record"].path == dataset_input[i]

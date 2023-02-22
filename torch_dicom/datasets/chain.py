@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Iterable, Iterator, Union
 
 from dicom_utils.dicom import Dicom
+from registry import bind_relevant_kwargs
 from torch import Tensor
 from torch.utils.data import ChainDataset, ConcatDataset
 
@@ -29,10 +30,10 @@ class AggregateInput(ChainDataset):
         tensors: Iterable[Tensor] = [],
         **kwargs,
     ):
-        dicom_file_ds = DicomPathInput(dicom_paths, **kwargs)
-        dicom_object_ds = DicomInput(dicoms, **kwargs)
-        tensor_file_ds = TensorPathInput(tensor_paths, **kwargs)
-        tensor_object_ds = TensorInput(tensors, **kwargs)
+        dicom_file_ds = bind_relevant_kwargs(DicomPathInput, **kwargs)(dicom_paths)
+        dicom_object_ds = bind_relevant_kwargs(DicomInput, **kwargs)(dicoms)
+        tensor_file_ds = bind_relevant_kwargs(TensorPathInput, **kwargs)(tensor_paths)
+        tensor_object_ds = bind_relevant_kwargs(TensorInput, **kwargs)(tensors)
         super().__init__(
             [
                 dicom_file_ds,
@@ -61,8 +62,8 @@ class AggregateDataset(ConcatDataset):
         tensor_paths: Iterable[Path] = [],
         **kwargs,
     ):
-        dicom_file_ds = DicomPathDataset(iter(dicom_paths), **kwargs)
-        tensor_file_ds = TensorPathDataset(iter(tensor_paths), **kwargs)
+        dicom_file_ds = bind_relevant_kwargs(DicomPathDataset, **kwargs)(dicom_paths)
+        tensor_file_ds = bind_relevant_kwargs(TensorPathDataset, **kwargs)(tensor_paths)
         super().__init__(
             [
                 dicom_file_ds,
