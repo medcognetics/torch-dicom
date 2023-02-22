@@ -14,13 +14,6 @@ from torch.utils.data import DataLoader
 from torch_dicom.datasets.dicom import DUMMY_PATH, DicomInput, DicomPathDataset, DicomPathInput, collate_fn
 
 
-@pytest.fixture
-def input_paths_iterator(file_list):
-    with open(file_list, "r") as f:
-        result = [line.strip() for line in f.readlines()]
-    return iter(result)
-
-
 class TestDicomInput:
     TEST_CLASS: ClassVar = DicomInput
 

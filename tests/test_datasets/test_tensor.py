@@ -12,22 +12,6 @@ from torch_dicom.datasets.dicom import collate_fn
 from torch_dicom.datasets.tensor import TensorInput, TensorPathDataset, TensorPathInput
 
 
-@pytest.fixture
-def tensor_input():
-    torch.random.manual_seed(0)
-    return iter([torch.rand(1, 2048, 1536) for _ in range(12)])
-
-
-@pytest.fixture
-def tensor_files(tmp_path, tensor_input):
-    paths = []
-    for i, t in enumerate(tensor_input):
-        path = tmp_path / f"tensor_{i}.pt"
-        torch.save(t, path)
-        paths.append(path)
-    return iter(paths)
-
-
 class TestTensorInput:
     TEST_CLASS: ClassVar = TensorInput
 
