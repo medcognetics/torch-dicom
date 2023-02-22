@@ -3,7 +3,7 @@
 PROJECT=torch_dicom
 PY_VER=python3.10
 PY_VER_SHORT=py$(shell echo $(PY_VER) | sed 's/[^0-9]*//g')
-QUALITY_DIRS=$(PROJECT) tests setup.py
+QUALITY_DIRS=$(PROJECT) tests
 CLEAN_DIRS=$(PROJECT) tests
 VENV=$(shell pwd)/env
 PYTHON=$(VENV)/bin/python
@@ -46,14 +46,14 @@ endif
 
 quality: $(VENV)/bin/activate-quality
 	$(MAKE) clean
-	$(PYTHON) -m black --check --line-length $(LINE_LEN) --target-version $(PY_VER_SHORT) $(QUALITY_DIRS)
-	$(PYTHON) -m flake8 --max-doc-length $(DOC_LEN) --max-line-length $(LINE_LEN) $(QUALITY_DIRS) 
+	$(PYTHON) -m black --check $(QUALITY_DIRS)
+	$(PYTHON) -m autopep8 -a $(QUALITY_DIRS)
 
 style: $(VENV)/bin/activate-quality
-	$(PYTHON) -m autoflake -r -i --remove-all-unused-imports --remove-unused-variables $(QUALITY_DIRS)
+	$(PYTHON) -m autoflake -r -i $(QUALITY_DIRS)
 	$(PYTHON) -m isort $(QUALITY_DIRS)
-	$(PYTHON) -m autopep8 -a -r -i --max-line-length=$(LINE_LEN) $(QUALITY_DIRS)
-	$(PYTHON) -m black --line-length $(LINE_LEN) --target-version $(PY_VER_SHORT) $(QUALITY_DIRS)
+	$(PYTHON) -m autopep8 -a $(QUALITY_DIRS)
+	$(PYTHON) -m black $(QUALITY_DIRS)
 
 test: $(VENV)/bin/activate-test ## run unit tests
 	$(PYTHON) -m pytest \
@@ -89,7 +89,7 @@ upload-test: package
 
 env: $(VENV)/bin/activate ## create a virtual environment for the project
 
-$(VENV)/bin/activate: setup.py setup.cfg requirements.txt
+$(VENV)/bin/activate: setup.cfg requirements.txt
 	test -d $(VENV) || $(PY_VER) -m venv $(VENV)
 	$(PYTHON) -m ensurepip
 	$(PYTHON) -m pip install -U pip 
