@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from .chain import AggregateDataset, AggregateInput
-from .dicom import DUMMY_PATH, DicomExample, DicomInput, DicomPathDataset, DicomPathInput, collate_fn
+from .dicom import DUMMY_PATH, DicomExample, DicomInput, DicomPathDataset, DicomPathInput, collate_fn, uncollate
 from .path import PathDataset, PathInput
 from .tensor import TensorExample, TensorInput, TensorPathDataset, TensorPathInput
 
@@ -22,4 +22,5 @@ __all__ = [
     "AggregateDataset",
     "collate_fn",
     "TensorExample",
+    "uncollate",
 ]
