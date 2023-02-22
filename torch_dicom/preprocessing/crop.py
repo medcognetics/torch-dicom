@@ -82,9 +82,8 @@ class MinMaxCrop:
     Args:
         img_key: Key for the image in the example dict.
 
-        img_size_key: Key for the image size in the example dict.
-
-        bounds_key: Key for the crop bounds in the example dict.
+        bounds_key: Key for the crop bounds in the example dict. The determined
+            crop bounds will be stored in this location.
 
         img_dest_key: Key for the cropped image in the example dict. If None,
             the cropped image will be stored in the same location as the original image.
@@ -94,7 +93,6 @@ class MinMaxCrop:
         - Output: :math:`(N, 4)`
     """
     img_key: str = "img"
-    img_size_key: str = "img_size"
     bounds_key: str = "crop_bounds"
     img_dest_key: Optional[str] = None
 
@@ -105,15 +103,6 @@ class MinMaxCrop:
     def __call__(self, example: E) -> E:
         if not isinstance(example, dict):
             raise TypeError(f"Expected example to be a dict, got {type(example)}")
-
-        # This should be present, but it's not an error if it's missing.
-        # We won't try to inject it ourselves because other augmentations may have
-        # been applied.
-        if self.img_size_key not in example:
-            warnings.warn(
-                f"Expected example to have '{self.img_size_key}' key, but it was not found. "
-                "This may cause issues when trying to reconstruct the image."
-            )
 
         # Crop image
         img = example[self.img_key]

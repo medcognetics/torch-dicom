@@ -1,14 +1,14 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import json
 from dataclasses import dataclass, field
 from functools import cached_property
 from pathlib import Path
-from typing import Iterable, Iterator, Set, Tuple, cast
+from typing import Any, Callable, Dict, Iterable, Iterator, Sequence, Set, cast
 
 import numpy as np
 import torch
-from dicom_utils.container import DicomImageFileRecord
 from dicom_utils.dicom import ALGORITHM_PRESENTATION_TYPE, Dicom, set_pixels
 from dicom_utils.volume import KeepVolume, VolumeHandler
 from pydicom.dataset import FileDataset
@@ -17,7 +17,7 @@ from torch import Tensor
 from torch.utils.data import DataLoader
 from tqdm_multiprocessing import ConcurrentMapper
 
-from ..datasets import AggregateInput, DicomExample, collate_fn
+from ..datasets import AggregateInput, collate_fn, uncollate
 
 
 def update_dicom(dicom: Dicom, img: Tensor) -> Dicom:
@@ -52,6 +52,18 @@ def update_dicom(dicom: Dicom, img: Tensor) -> Dicom:
     return dicom
 
 
+def recursive_tensor_to_list(x: Dict[str, Any]) -> Dict[str, Any]:
+    result: Dict[str, Any] = {}
+    for k, v in x.items():
+        if isinstance(v, dict):
+            result[k] = recursive_tensor_to_list(v)
+        elif isinstance(v, Tensor):
+            result[k] = v.tolist()
+        else:
+            result[k] = v
+    return result
+
+
 @dataclass
 class PreprocessingPipeline:
     r"""Preprocessing pipeline for DICOM images.
@@ -73,6 +85,7 @@ class PreprocessingPipeline:
     dicoms: Iterable[Dicom] = field(default_factory=list)
 
     # TODO: add transforms
+    transforms: Sequence[Callable[[Dict[str, Any]], Dict[str, Any]]] = field(default_factory=list)
 
     batch_size: int = 1
     num_workers: int = 1
@@ -82,17 +95,23 @@ class PreprocessingPipeline:
     dataloader_kwargs: dict = field(default_factory=dict)
     use_bar: bool = True
 
-    def __iter__(self) -> Iterator[Tuple[DicomImageFileRecord, Dicom]]:
+    def __iter__(self) -> Iterator[Dict[str, Any]]:
         for batch in self.dataloader:
-            batch: DicomExample
-            for img, dicom, record in zip(batch["img"], batch["dicom"], batch["record"]):
-                assert isinstance(record, DicomImageFileRecord)
+            batch = self.apply_transforms(batch)
+
+            for example in uncollate(batch):
+                # Update the DICOM object
+                dicom = example["dicom"]
+                img = example["img"]
                 assert isinstance(dicom, Dicom)
-                img, dicom = self.apply_transforms(img, dicom)
+                assert isinstance(img, Tensor)
                 dicom = update_dicom(dicom, img)
                 dicom["PixelData"].VR = "OB"
                 dicom.PresentationIntentType = ALGORITHM_PRESENTATION_TYPE
-                yield record, dicom
+
+                # Propagate to dict and yield
+                example["dicom"] = dicom
+                yield example
 
     def __call__(self, dest: Path) -> Set[Path]:
         if not dest.is_dir():
@@ -102,12 +121,13 @@ class PreprocessingPipeline:
         # Input is already accelerated by DataLoader multi-processing.
         with ConcurrentMapper(threads=True, jobs=self.num_workers, ignore_exceptions=False) as mapper:
             mapper.create_bar(desc="Preprocessing", disable=not self.use_bar)
-            result: Set[Path] = set(mapper(lambda x: PreprocessingPipeline._save_as(x[1], dest), iter(self)))
+            result: Set[Path] = set(mapper(lambda x: PreprocessingPipeline._save_as(x, dest), iter(self)))
         return result
 
-    def apply_transforms(self, img: Tensor, dicom: Dicom) -> Tuple[Tensor, Dicom]:
-        # FIXME
-        return img, dicom
+    def apply_transforms(self, inp: Dict[str, Any]) -> Dict[str, Any]:
+        for transform in self.transforms:
+            inp = transform(inp)
+        return inp
 
     @cached_property
     def dataloader(self) -> DataLoader:
@@ -129,7 +149,26 @@ class PreprocessingPipeline:
         )
 
     @staticmethod
-    def _save_as(dicom: Dicom, dest: Path) -> Path:
-        dest_path = dest / f"{dicom.SOPInstanceUID}.dcm"
+    def _save_as(result: Dict[str, Any], dest: Path) -> Path:
+        dicom = result["dicom"]
+        assert isinstance(dicom, Dicom)
+
+        # Save the DICOM
+        dest_path = dest / "images" / f"{dicom.SOPInstanceUID}.dcm"
+        dest_path.parent.mkdir(exist_ok=True)
         dicom.save_as(dest_path)
+
+        # Pop big objects
+        result.pop("dicom")
+        result.pop("img")
+        result.pop("record")
+
+        # Ensure any tensors are converted to lists
+        result = recursive_tensor_to_list(result)
+
+        metadata_path = dest / "metadata" / f"{dicom.SOPInstanceUID}.json"
+        metadata_path.parent.mkdir(exist_ok=True)
+        with metadata_path.open("w") as f:
+            json.dump(result, f)
+
         return dest_path
