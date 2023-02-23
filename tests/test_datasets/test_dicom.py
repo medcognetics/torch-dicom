@@ -97,6 +97,15 @@ class TestDicomInput:
         assert all(isinstance(r, DicomImageFileRecord) for r in batch["record"])
         assert all(b.path == DUMMY_PATH for b in batch["record"])
 
+    def test_uncollate(self, dataset_input):
+        ds = iter(self.TEST_CLASS(dataset_input))
+        e1 = next(ds)
+        e2 = next(ds)
+        batch = collate_fn([deepcopy(e1), deepcopy(e2)], False)
+        examples = list(uncollate(batch))
+        assert examples[0]["record"] == e1["record"]
+        assert examples[1]["record"] == e2["record"]
+
     def test_repr(self, dataset_input):
         ds = self.TEST_CLASS(dataset_input)
         assert isinstance(repr(ds), str)

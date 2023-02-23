@@ -113,7 +113,7 @@ def collate_fn(batch: Sequence[D], default_fallback: bool = True) -> D:
             raise e
 
 
-def uncollate(batch: Dict[str, Any]) -> Iterator[Dict[str, Any]]:
+def uncollate(batch: D) -> Iterator[D]:
     r"""Uncollates a batch dictionary into an iterator of example dictionaries.
     This is the inverse of :func:`collate_fn`. Non-sequence elements are repeated
     for each example in the batch. If examples in the batch have different
@@ -133,7 +133,8 @@ def uncollate(batch: Dict[str, Any]) -> Iterator[Dict[str, Any]]:
     non_sequences = {k: [v] * batch_size for k, v in batch.items() if not isinstance(v, (Sequence, Tensor))}
 
     for idx in range(batch_size):
-        yield {k: v[idx] for container in (sequences, non_sequences) for k, v in container.items()}
+        result = {k: v[idx] for container in (sequences, non_sequences) for k, v in container.items()}
+        yield cast(D, result)
 
 
 def filter_collatable_types(example: D) -> D:
