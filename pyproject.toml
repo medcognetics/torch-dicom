@@ -2,16 +2,23 @@
 requires = ["setuptools>=42", "wheel"]   # PEP 508 specifications.
 build-backend = "setuptools.build_meta"
 
+[tool.autoflake]
+remove-all-unused-imports = true
+remove-unused-variables = true
+files = ["torch_dicom", "tests"]
+
 [tool.autopep8]
 max_line_length = 120
-ignore = "E501,W6"  # or ["E501", "W6"]
+ignore = "E501,W6,E203"  # or ["E501", "W6"]
 in-place = true
 recursive = true
 aggressive = 3
+files = ["torch_dicom", "tests"]
 
 [tool.black]
 line-length = 120
 target-version = ['py37']
+src = ["torch_dicom", "tests"]
 
 [tool.isort]
 ensure_newline_before_comments = true
@@ -21,6 +28,8 @@ line_length = 119
 lines_after_imports = 2
 multi_line_output = 3
 use_parentheses = false
+src_paths = ["torch_dicom", "tests"]
+
 
 [tool.pyright]
 venvPath = "."
