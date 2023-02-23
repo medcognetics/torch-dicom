@@ -14,6 +14,8 @@ class TestResize:
         x = torch.ones((1, 1, height, width), dtype=dtype)
         return x
 
+    @pytest.mark.parametrize("smart_pad", [True, False])
+    @pytest.mark.parametrize("preserve_aspect_ratio", [True, False])
     @pytest.mark.parametrize(
         "height, width, target_h, target_w, aspect_match",
         [
@@ -22,12 +24,12 @@ class TestResize:
             (64, 64, 32, 16, False),
         ],
     )
-    def test_resize(self, inp, target_h, target_w, aspect_match):
-        resized = Resize.resize(inp, (target_h, target_w))
+    def test_resize(self, inp, target_h, target_w, aspect_match, preserve_aspect_ratio, smart_pad):
+        resized = Resize.resize(inp, (target_h, target_w), preserve_aspect_ratio, smart_pad=smart_pad)
         img = resized["img"]
         assert img.shape == (1, 1, target_h, target_w)
 
-        if aspect_match:
+        if aspect_match or not preserve_aspect_ratio:
             assert resized["resized_h"] == target_h
             assert resized["resized_w"] == target_w
             assert (img == 1).all()

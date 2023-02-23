@@ -127,14 +127,13 @@ class Resize:
         result_dict: Dict[str, Any] = {"orig_h": H, "orig_w": W}
 
         # Get scale factor
-        if preserve_aspect_ratio:
-            scale = min(H_target / H, W_target / W)
-        else:
-            scale = 1
+        scale_h, scale_w = (
+            (min(H_target / H, W_target / W),) * 2 if preserve_aspect_ratio else (H_target / H, W_target / W)
+        )
 
         # Get new size
-        H_new = int(H * scale)
-        W_new = int(W * scale)
+        H_new = int(H * scale_h)
+        W_new = int(W * scale_w)
         result_dict["resized_h"] = H_new
         result_dict["resized_w"] = W_new
 
