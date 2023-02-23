@@ -40,7 +40,7 @@ class TestResize:
         "height, width, target_h, target_w, coords, exp",
         [
             (64, 64, 32, 32, (32, 32), (16, 16)),
-            (64, 64, 32, 16, (32, 32), (8, 8)),
+            (64, 64, 32, 16, (32, 32), (8, 16)),
         ],
     )
     def test_apply_to_coords(self, inp, target_h, target_w, coords, exp):

@@ -147,8 +147,8 @@ class Resize:
 
         # Pad image
         if preserve_aspect_ratio and (H_new != H_target or W_new != W_target):
-            # Vertical padding will be at the bottom
-            pad_top = 0
+            # Choose vertical padding to be centered
+            pad_top = (H_target - H_new) // 2
 
             if smart_pad:
                 # Choose horizontal padding based on what half of the image has a higher mean pixel value
