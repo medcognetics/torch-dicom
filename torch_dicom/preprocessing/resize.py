@@ -45,7 +45,7 @@ class Resize:
 
     Shape:
         - Input: :math:`(N, *, H, W)`
-        - Output: :math:`(N, 4)`
+        - Output: :math:`(N, *, H', W')`
     """
     size: Tuple[int, int]
     mode: str = "bilinear"

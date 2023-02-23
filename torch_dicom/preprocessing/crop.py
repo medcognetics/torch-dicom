@@ -90,7 +90,7 @@ class MinMaxCrop:
 
     Shape:
         - Input: :math:`(N, *, H, W)`
-        - Output: :math:`(N, 4)`
+        - Output: :math:`(N, *, H', W')`
     """
     img_key: str = "img"
     bounds_key: str = "crop_bounds"
