@@ -113,6 +113,30 @@ def collate_fn(batch: Sequence[D], default_fallback: bool = True) -> D:
             raise e
 
 
+def uncollate(batch: D) -> Iterator[D]:
+    r"""Uncollates a batch dictionary into an iterator of example dictionaries.
+    This is the inverse of :func:`collate_fn`. Non-sequence elements are repeated
+    for each example in the batch. If examples in the batch have different
+    sequence lengths, the iterator will be truncated to the shortest sequence.
+
+    Args:
+        batch: The batch dictionary to uncollate.
+
+    Returns:
+        An iterator of example dictionaries.
+    """
+    # separate out sequence-like elements and compute a batch size
+    sequences = {k: v for k, v in batch.items() if isinstance(v, (Sequence, Tensor))}
+    batch_size = min((len(v) for v in sequences.values()), default=0)
+
+    # repeat non-sequence elements
+    non_sequences = {k: [v] * batch_size for k, v in batch.items() if not isinstance(v, (Sequence, Tensor))}
+
+    for idx in range(batch_size):
+        result = {k: v[idx] for container in (sequences, non_sequences) for k, v in container.items()}
+        yield cast(D, result)
+
+
 def filter_collatable_types(example: D) -> D:
     r"""Filters out non-collatable types from a dictionary."""
     result = {k: v for k, v in example.items() if isinstance(v, (Tensor, list, str, *LIST_COLLATE_TYPES))}

@@ -11,7 +11,40 @@ from dicom_utils.dicom_factory import DicomFactory
 from torch import Tensor
 from torch.utils.data import DataLoader
 
-from torch_dicom.datasets.dicom import DUMMY_PATH, DicomInput, DicomPathDataset, DicomPathInput, collate_fn
+from torch_dicom.datasets.dicom import DUMMY_PATH, DicomInput, DicomPathDataset, DicomPathInput, collate_fn, uncollate
+
+
+class TestUncollate:
+    def test_uncollate_tensors(self):
+        batch = {"t1": torch.rand(2, 4), "t2": torch.rand(2, 8)}
+        for i, example in enumerate(uncollate(batch)):
+            assert isinstance(example, dict)
+            assert example.keys() == batch.keys()
+            for k, v in example.items():
+                assert isinstance(v, Tensor)
+                assert (v == batch[k][i]).all()
+
+    def test_uncollate_mixed(self):
+        batch = {"t1": torch.rand(2, 4), "paths": [DUMMY_PATH, DUMMY_PATH]}
+        for i, example in enumerate(uncollate(batch)):
+            assert isinstance(example, dict)
+            assert example.keys() == batch.keys()
+            for k, v in example.items():
+                if isinstance(v, Tensor):
+                    assert (v == batch[k][i]).all()
+                else:
+                    assert v == batch[k][i]
+
+    def test_repeat(self):
+        batch = {"t1": torch.rand(2, 4), "paths": 32}
+        for i, example in enumerate(uncollate(batch)):
+            assert isinstance(example, dict)
+            assert example.keys() == batch.keys()
+            for k, v in example.items():
+                if isinstance(v, Tensor):
+                    assert (v == batch[k][i]).all()
+                else:
+                    assert v == batch[k]
 
 
 class TestDicomInput:
@@ -63,6 +96,15 @@ class TestDicomInput:
         assert isinstance(batch["dicom"], list) and len(batch["dicom"]) == 2
         assert all(isinstance(r, DicomImageFileRecord) for r in batch["record"])
         assert all(b.path == DUMMY_PATH for b in batch["record"])
+
+    def test_uncollate(self, dataset_input):
+        ds = iter(self.TEST_CLASS(dataset_input))
+        e1 = next(ds)
+        e2 = next(ds)
+        batch = collate_fn([deepcopy(e1), deepcopy(e2)], False)
+        examples = list(uncollate(batch))
+        assert examples[0]["record"] == e1["record"]
+        assert examples[1]["record"] == e2["record"]
 
     def test_repr(self, dataset_input):
         ds = self.TEST_CLASS(dataset_input)
