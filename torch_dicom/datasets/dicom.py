@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 import logging
 import warnings
-from copy import deepcopy
-from dataclasses import replace
+from copy import copy, deepcopy
+from dataclasses import is_dataclass, replace
 from itertools import islice
 from pathlib import Path
 from typing import (
@@ -49,7 +49,12 @@ class DicomExample(TypedDict):
     dicom: Dicom
 
 
-def collate_fn(batch: Sequence[D], default_fallback: bool = True) -> D:
+def collate_fn(
+    batch: Sequence[D],
+    default_fallback: bool = True,
+    list_types: Tuple[Type, ...] = LIST_COLLATE_TYPES,
+    dataclasses_as_lists: bool = True,
+) -> D:
     r"""Collate function that supports Paths and FileRecords.
     All inputs should be dictionaries with the same keys. Any key that is a
     Path, DICOM, or FileRecord will be joined as a list. If all inputs are not dictionaries
@@ -60,6 +65,8 @@ def collate_fn(batch: Sequence[D], default_fallback: bool = True) -> D:
         batch: The batch of inputs to collate.
         default_fallback: If True, the default collate function will be used if
             there is an error or all inputs are not dictionaries.
+        list_types: The custom types to collate into a list.
+        dataclasses_as_lists: If True, dataclasses will be collated as lists.
 
     Returns:
         The collated batch.
@@ -71,8 +78,11 @@ def collate_fn(batch: Sequence[D], default_fallback: bool = True) -> D:
         else:
             raise TypeError("All inputs must be dictionaries.")
 
+    # Copy because we will be mutating the batch
+    batch = [copy(b) for b in batch]
+
     try:
-        manual: Dict[Type, Dict[str, List[Any]]] = {k: {} for k in LIST_COLLATE_TYPES}
+        manual: Dict[Type, Dict[str, List[Any]]] = {k: {} for k in list_types}
         proto = batch[0]
 
         # ensure keys are copied since we will be mutating
@@ -94,9 +104,13 @@ def collate_fn(batch: Sequence[D], default_fallback: bool = True) -> D:
                         container.setdefault(key, []).append(value)
                         elem.pop(key)
                         break
+                else:
+                    if is_dataclass(value) and dataclasses_as_lists:
+                        manual.setdefault(type(value), {}).setdefault(key, []).append(value)
+                        elem.pop(key)
 
         # we should have removed all batch elem values that are being handled manually
-        assert not any(isinstance(v, LIST_COLLATE_TYPES) for elem in batch for v in elem.values())
+        assert not any(isinstance(v, list_types) for elem in batch for v in elem.values())
 
         # call default collate and merge with the manually collated dtypes
         result = default_collate(cast(List[Any], batch))
