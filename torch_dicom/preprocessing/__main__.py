@@ -5,6 +5,7 @@ from pathlib import Path
 
 import torch
 from dicom_utils.container.collection import iterate_input_path
+from dicom_utils.dicom import nvjpeg2k_is_available
 
 from .crop import MinMaxCrop
 from .pipeline import PreprocessingPipeline
@@ -22,7 +23,7 @@ def parse_args() -> Namespace:
         "-d", "--device", type=torch.device, default=torch.device("cpu"), help="Device to use for augmentations"
     )
     parser.add_argument("-p", "--prefetch-factor", type=int, default=4, help="Prefetch factor for dataloader")
-    parser.add_argument("-s", "--size", nargs="+", type=int, default=None, help="Output image size")
+    parser.add_argument("-s", "--size", nargs=2, type=int, default=None, help="Output image size")
     return parser.parse_args()
 
 
@@ -42,6 +43,7 @@ def main(args: Namespace):
     # TODO: Batch size should be configurable. It is hard-coded to 1 for now because we
     # cannot collate inputs of different sizes. We should either pad inputs or disable
     # batching.
+    print(f"NVJPEG Available: {nvjpeg2k_is_available()}")
     pipeline = PreprocessingPipeline(
         iterate_input_path(args.input),
         num_workers=args.num_workers,
