@@ -28,7 +28,7 @@ import numpy as np
 import pydicom
 import torch
 import torch.nn.functional as F
-from dicom_utils.container import DicomImageFileRecord, FileRecord
+from dicom_utils.container import DicomImageFileRecord, FileRecord, RecordCreator
 from dicom_utils.dicom import Dicom, read_dicom_image
 from dicom_utils.volume import SliceAtLocation, VolumeHandler
 from torch import Tensor
@@ -293,9 +293,10 @@ class DicomInput(IterableDataset):
         if img_size is not None:
             pixels = F.interpolate(pixels.unsqueeze_(0), img_size, mode="nearest").squeeze_(0)
 
-        rec = DicomImageFileRecord.from_dicom(DUMMY_PATH, dcm)
+        creator = RecordCreator()
+        rec = creator(DUMMY_PATH, dcm)
 
-        # from_dicom will make DUMMY_PATH absolute, but we want it relative
+        # Ensure that the path is set to DUMMY_PATH
         rec = replace(rec, path=DUMMY_PATH)
 
         # Copy the dicom object to avoid modifying the original and remove the pixel data.
