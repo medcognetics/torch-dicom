@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 from copy import deepcopy
+from dataclasses import dataclass
 from typing import ClassVar
 
 import pytest
@@ -45,6 +46,44 @@ class TestUncollate:
                     assert (v == batch[k][i]).all()
                 else:
                     assert v == batch[k]
+
+
+class TestCollate:
+    def test_collate_tensors(self):
+        batch = [{"t1": torch.rand(4), "t2": torch.rand(8)}, {"t1": torch.rand(4), "t2": torch.rand(8)}]
+        collated = collate_fn(batch, False)
+        assert isinstance(collated, dict)
+        assert collated.keys() == batch[0].keys()
+        for k, v in collated.items():
+            assert isinstance(v, Tensor)
+            assert v.shape == (2, *batch[0][k].shape)
+
+    def test_collate_mixed(self):
+        batch = [{"t1": torch.rand(4), "path": DUMMY_PATH}, {"t1": torch.rand(4), "path": DUMMY_PATH}]
+        collated = collate_fn(batch, False)
+        assert isinstance(collated, dict)
+        assert collated.keys() == batch[0].keys()
+        for k, v in collated.items():
+            if isinstance(v, Tensor):
+                assert v.shape == (2, *batch[0][k].shape)
+            else:
+                assert v == [batch[0][k], batch[1][k]]
+
+    @pytest.mark.parametrize("dataclasses_as_lists", [True, pytest.param(False, marks=pytest.mark.xfail(strict=True))])
+    def test_collate_dataclass(self, dataclasses_as_lists):
+        @dataclass
+        class Foo:
+            x: int = 1
+
+        batch = [{"t1": torch.rand(4), "foo": Foo()}, {"t1": torch.rand(4), "foo": Foo()}]
+        collated = collate_fn(batch, False, dataclasses_as_lists=dataclasses_as_lists)
+        assert isinstance(collated, dict)
+        assert collated.keys() == batch[0].keys()
+        for k, v in collated.items():
+            if isinstance(v, Tensor):
+                assert v.shape == (2, *batch[0][k].shape)
+            else:
+                assert v == [batch[0][k], batch[1][k]]
 
 
 class TestDicomInput:
