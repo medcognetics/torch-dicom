@@ -6,7 +6,7 @@ from typing import ClassVar
 
 import pytest
 import torch
-from dicom_utils.container import DicomImageFileRecord
+from dicom_utils.container import MammogramFileRecord
 from dicom_utils.dicom import Dicom
 from dicom_utils.dicom_factory import DicomFactory
 from torch import Tensor
@@ -116,7 +116,7 @@ class TestDicomInput:
             assert example["img"].shape == (1, 2048, 1536)
             assert example["img"].dtype == (torch.float if normalize else torch.int32)
             assert isinstance(example["img_size"], Tensor) and example["img_size"].shape == (2,)
-            assert isinstance(example["record"], DicomImageFileRecord)
+            assert isinstance(example["record"], MammogramFileRecord)
             assert example["record"].path == DUMMY_PATH
             assert isinstance(example["dicom"], Dicom), "Dicom object not returned"
             assert not example["dicom"].get("PixelData", None), "PixelData not removed"
@@ -133,7 +133,7 @@ class TestDicomInput:
         assert isinstance(batch["img_size"], Tensor) and batch["img_size"].shape == (2, 2)
         assert isinstance(batch["record"], list) and len(batch["record"]) == 2
         assert isinstance(batch["dicom"], list) and len(batch["dicom"]) == 2
-        assert all(isinstance(r, DicomImageFileRecord) for r in batch["record"])
+        assert all(isinstance(r, MammogramFileRecord) for r in batch["record"])
         assert all(b.path == DUMMY_PATH for b in batch["record"])
 
     def test_uncollate(self, dataset_input):
@@ -176,7 +176,7 @@ class TestDicomPathInput(TestDicomInput):
             assert example["img"].shape == (1, 2048, 1536)
             assert example["img"].dtype == (torch.float if normalize else torch.int32)
             assert isinstance(example["img_size"], Tensor) and example["img_size"].shape == (2,)
-            assert isinstance(example["record"], DicomImageFileRecord)
+            assert isinstance(example["record"], MammogramFileRecord)
             assert example["record"].path == dataset_input[i]
             assert isinstance(example["dicom"], Dicom), "Dicom object not returned"
             assert not example["dicom"].get("PixelData", None), "PixelData not removed"
@@ -193,7 +193,7 @@ class TestDicomPathInput(TestDicomInput):
         assert isinstance(batch["img_size"], Tensor) and batch["img_size"].shape == (2, 2)
         assert isinstance(batch["record"], list) and len(batch["record"]) == 2
         assert isinstance(batch["dicom"], list) and len(batch["dicom"]) == 2
-        assert all(isinstance(r, DicomImageFileRecord) for r in batch["record"])
+        assert all(isinstance(r, MammogramFileRecord) for r in batch["record"])
         assert [b.path for b in batch["record"]] == dataset_input[:2]
 
 
@@ -218,5 +218,5 @@ class TestDicomPathDataset(TestDicomPathInput):
         example = ds[0]
         assert example["img"].shape == (1, 2048, 1536) and example["img"].dtype == torch.float
         assert isinstance(example["img_size"], Tensor) and example["img_size"].shape == (2,)
-        assert isinstance(example["record"], DicomImageFileRecord)
+        assert isinstance(example["record"], MammogramFileRecord)
         assert example["record"].path == dataset_input[0]
