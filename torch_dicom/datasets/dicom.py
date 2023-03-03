@@ -390,8 +390,19 @@ class DicomPathDataset(PathDataset):
         if not 0 <= idx <= len(self):
             raise IndexError(f"Index {idx} is invalid for dataset length {len(self)}")
         path = self.files[idx]
-        return DicomPathInput.load_example(path, self.img_size, self.transform, self.volume_handler, self.normalize)
+        return self.load_example(path, self.img_size, self.transform, self.volume_handler, self.normalize)
 
     def __iter__(self) -> Iterator[DicomExample]:
         for path in self.files:
-            yield DicomPathInput.load_example(path, self.img_size, self.transform, self.volume_handler, self.normalize)
+            yield self.load_example(path, self.img_size, self.transform, self.volume_handler, self.normalize)
+
+    @classmethod
+    def load_example(
+        cls,
+        path: Path,
+        img_size: Optional[Tuple[int, int]],
+        transform: Optional[Callable] = None,
+        volume_handler: VolumeHandler = SliceAtLocation(),
+        normalize: bool = True,
+    ) -> DicomExample:
+        return DicomPathInput.load_example(path, img_size, transform, volume_handler, normalize)
