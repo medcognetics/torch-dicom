@@ -1,24 +1,40 @@
 [build-system]
-requires = ["setuptools>=42", "wheel"]   # PEP 508 specifications.
-build-backend = "setuptools.build_meta"
+requires = ["pdm-pep517>=1.0"]
+build-backend = "pdm.pep517.api"
+
+[project]
+name = "torch-dicom"
+description = ""
+requires-python = ">=3.8"
+authors = [
+    {name = "Scott Chase Waggener", email = "tidalpaladin@protonmail.com"},
+]
+dependencies = [
+  "einops",
+  "torch>=1.11.0",
+  "pandas",
+  "dicom-utils @ git+https://github.com/medcognetics/dicom-utils.git#egg=dicom-utils",
+]
+readme = "README.md"
+license = {text = "Apache"}
+dynamic = ["version"]
+
+[project.optional-dependencies]
 
 [tool.autoflake]
 remove-all-unused-imports = true
 remove-unused-variables = true
-files = ["torch_dicom", "tests"]
 
 [tool.autopep8]
 max_line_length = 120
-ignore = "E501,W6,E203"  # or ["E501", "W6"]
+ignore = "E501,W6,E203"
 in-place = true
 recursive = true
 aggressive = 3
-files = ["torch_dicom", "tests"]
 
 [tool.black]
 line-length = 120
 target-version = ['py37']
-src = ["torch_dicom", "tests"]
 
 [tool.isort]
 ensure_newline_before_comments = true
@@ -28,9 +44,33 @@ line_length = 119
 lines_after_imports = 2
 multi_line_output = 3
 use_parentheses = false
-src_paths = ["torch_dicom", "tests"]
-
 
 [tool.pyright]
-venvPath = "."
-venv = "env"
+
+[tool.pdm]
+version = { source = "scm" }
+
+[tool.pdm.dev-dependencies]
+test = [
+  "pytest",
+  "pytest-mock",
+  "pytest-cov",
+  "coverage",
+]
+quality = [
+  "autoflake",
+  "autopep8",
+  "black",
+  "flake8",
+  "isort",
+]
+
+[tool.pytest.ini_options]
+markers = [
+  "ci_skip",
+]
+filterwarnings = []
+
+# Sample script config
+[project.scripts]
+dicom-preprocess = "torch_dicom.preprocessing.__main__:entrypoint"
