@@ -69,7 +69,9 @@ quality = [
 markers = [
   "ci_skip",
 ]
-filterwarnings = []
+filterwarnings = [
+  "ignore:.*Invalid value for VR.*:UserWarning"
+]
 
 # Sample script config
 [project.scripts]
