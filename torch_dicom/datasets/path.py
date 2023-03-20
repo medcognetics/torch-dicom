@@ -21,7 +21,7 @@ class PathInput(IterableDataset):
 
 class PathDataset(Dataset):
     def __init__(self, paths: Iterable[Path]):
-        self.files = [Path(p) for p in tqdm(paths, desc="Scanning files")]
+        self.files = [Path(p) for p in tqdm(paths, desc="Scanning files", leave=False)]
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(len={len(self)})"
