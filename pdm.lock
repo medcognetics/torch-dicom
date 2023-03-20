@@ -465,6 +465,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "pynvjpeg"
+version = "0.1.dev14+gf637964.d20230320"
+requires_python = ">=3.8"
+path = "/home/chase/Documents/pynvjpeg2k"
+summary = ""
+dependencies = [
+    "numpy",
+]
+
+[[package]]
 name = "pyparsing"
 version = "3.0.9"
 requires_python = ">=3.6.8"
@@ -632,7 +642,11 @@ summary = "Backport of pathlib-compatible object wrapper for zip files"
 
 [metadata]
 lock_version = "4.1"
+<<<<<<< HEAD
 content_hash = "sha256:2b118d5862dd8ef8479794875958fb866ce4c315e7ac7e1516af85c1691a97e6"
+=======
+content_hash = "sha256:aa4a5a342055e7c86174e6afa7b4938a455cd2ca57528308a98e216cab788acd"
+>>>>>>> 0584db4 (WIP)
 
 [metadata.files]
 "attrs 22.2.0" = [
