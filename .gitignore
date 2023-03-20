@@ -137,3 +137,4 @@ coverage.xml
 
 *.orig.*
 **/version.py
+.pdm.toml
