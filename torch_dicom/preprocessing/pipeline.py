@@ -12,7 +12,7 @@ import torch
 from dicom_utils.dicom import ALGORITHM_PRESENTATION_TYPE, Dicom, set_pixels
 from dicom_utils.volume import KeepVolume, VolumeHandler
 from pydicom.dataset import FileDataset
-from pydicom.uid import ImplicitVRLittleEndian
+from pydicom.uid import ExplicitVRLittleEndian
 from torch import Tensor
 from torch.utils.data import DataLoader
 from tqdm_multiprocessing import ConcurrentMapper
@@ -42,8 +42,10 @@ def update_dicom(dicom: Dicom, img: Tensor) -> Dicom:
     dicom.Columns = W
     dicom.NumberOfFrames = img.shape[-3]
 
+    # Set TransferSyntaxUID to ExplicitVRLittleEndian if compressed.
+    # This matches what dicom_utils does when decompressing.
     tsuid = dicom.file_meta.TransferSyntaxUID
-    new_syntax = tsuid if not tsuid.is_compressed else ImplicitVRLittleEndian
+    new_syntax = tsuid if not tsuid.is_compressed else ExplicitVRLittleEndian
     dicom = set_pixels(cast(FileDataset, dicom), img.cpu().numpy().astype(np.uint16), syntax=new_syntax)
 
     # Disabled for performance
