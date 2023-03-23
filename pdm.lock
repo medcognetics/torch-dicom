@@ -108,10 +108,10 @@ dependencies = [
 
 [[package]]
 name = "dicom-utils"
-version = "0.1.0"
+version = "0.1.dev84+gf89536d"
 requires_python = ">=3.8"
 git = "https://github.com/medcognetics/dicom-utils.git"
-revision = "c15d2858cfa8017052bd8a3e8b71efad5c275c4d"
+revision = "f89536d86832638d2c97d15476a1f35835b55504"
 summary = ""
 dependencies = [
     "Pillow",
@@ -520,10 +520,10 @@ summary = "World timezone definitions, modern and historical"
 
 [[package]]
 name = "registry"
-version = "0.1.1.dev12+gcc59ff8"
+version = "0.1.1.dev13+gbbc2459"
 requires_python = ">=3.7"
 git = "https://github.com/TidalPaladin/callable-registry.git"
-revision = "cc59ff84194b76d9450e3dfb1facb31601730f17"
+revision = "bbc245975eb463574b1ecc468ec63220d3f0ccaa"
 summary = ""
 dependencies = [
     "typing-extensions; python_version < \"3.11\"",
@@ -1409,8 +1409,17 @@ content_hash = "sha256:63892046847ce153b597f313743ceefddcb4981b9b6397e9356a21ace
     {url = "https://files.pythonhosted.org/packages/4c/31/2de23d4e7849e9e1ec61c8560b362624b4337523845243f23cae7d0a0ffd/triton-2.0.0-cp39-cp39-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:0117722f8c2b579cd429e0bee80f7731ae05f63fe8e9414acd9a679885fcbf42"},
     {url = "https://files.pythonhosted.org/packages/57/b6/d93645e54a7a7ceba5c8a94cfc843f2c17b47853fc106527afc5562a40e8/triton-2.0.0-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:75834f27926eab6c7f00ce73aaf1ab5bfb9bec6eb57ab7c0bfc0a23fac803b4c"},
     {url = "https://files.pythonhosted.org/packages/5c/b2/16e5d69b331b4bcfd12db5264eeaba12a47e4f1878610f95809c4c04248e/triton-2.0.0-pp39-pypy39_pp73-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:52c47b72c72693198163ece9d90a721299e4fb3b8e24fd13141e384ad952724f"},
+    {url = "https://files.pythonhosted.org/packages/72/90/91059851af9ffbceb40eeabb2e2522cd8b184b005f4b4ba44f6cba081ef0/triton-2.0.0-1-pp38-pypy38_pp73-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:1aca3303629cd3136375b82cb9921727f804e47ebee27b2677fef23005c3851a"},
+    {url = "https://files.pythonhosted.org/packages/77/ac/28b74ec1177c730d0da8803eaff5e5025bd532bcf07cadb0fcf661abed97/triton-2.0.0-1-cp39-cp39-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:74f118c12b437fb2ca25e1a04759173b517582fcf4c7be11913316c764213656"},
     {url = "https://files.pythonhosted.org/packages/92/84/83e0da09436024ab3118248391949e219bbdee085fb0ae86d64d653b9a33/triton-2.0.0-pp37-pypy37_pp73-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:bcd9be5d0c2e45d2b7e6ddc6da20112b6862d69741576f9c3dbaf941d745ecae"},
+    {url = "https://files.pythonhosted.org/packages/95/2e/d40c5e21c9b58f569d993b11e2b1022d5858df2ab74238fe95d6d089edc9/triton-2.0.0-1-pp37-pypy37_pp73-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:9618815a8da1d9157514f08f855d9e9ff92e329cd81c0305003eb9ec25cc5add"},
+    {url = "https://files.pythonhosted.org/packages/a6/4b/28142a3c70621cb3398ac626c276268ca87af50a3fa43667a834fa5d13bf/triton-2.0.0-1-cp38-cp38-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:9d4978298b74fcf59a75fe71e535c092b023088933b2f1df933ec32615e4beef"},
+    {url = "https://files.pythonhosted.org/packages/b7/72/31c8a99de642b30c576281486f22aff2d9287d6214160a3a891c4b18e7b4/triton-2.0.0-1-cp37-cp37m-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:d2684b6a60b9f174f447f36f933e9a45f31db96cb723723ecd2dcfd1c57b778b"},
+    {url = "https://files.pythonhosted.org/packages/b7/cd/4aa0179919306f9c2e3e5308f269d20c094b2a4e2963b656e9405172763f/triton-2.0.0-1-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:226941c7b8595219ddef59a1fdb821e8c744289a132415ddd584facedeb475b1"},
+    {url = "https://files.pythonhosted.org/packages/bc/7b/2ab6496b01318708173ad32cff1af023a526e2ea716629819bf8720afe17/triton-2.0.0-1-cp36-cp36m-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:4c9fc8c89874bc48eb7e7b2107a9b8d2c0bf139778637be5bfccb09191685cfd"},
     {url = "https://files.pythonhosted.org/packages/c4/2a/7c7af8113082c78b98f0998201c48b0315c38814ea67526799c5e48b9205/triton-2.0.0-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:8f05a7e64e4ca0565535e3d5d3405d7e49f9d308505bb7773d21fb26a4c008c2"},
+    {url = "https://files.pythonhosted.org/packages/ca/31/ff6be541195daf77aa5c72303b2354661a69e717967d44d91eb4f3fdce32/triton-2.0.0-1-cp310-cp310-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:38806ee9663f4b0f7cd64790e96c579374089e58f49aac4a6608121aa55e2505"},
+    {url = "https://files.pythonhosted.org/packages/d5/61/f6c3260de70c2b980702f2fde0526690de40432ebfe2f4b9e81a9007cf09/triton-2.0.0-1-pp39-pypy39_pp73-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:e3e13aa8b527c9b642e3a9defcc0fbd8ffbe1c80d8ac8c15a01692478dc64d8a"},
     {url = "https://files.pythonhosted.org/packages/e1/1d/fd57199cf8be37f7e846408cacb0a466ae21cd1612e268ab168bc815b007/triton-2.0.0-pp38-pypy38_pp73-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:42a0d2c3fc2eab4ba71384f2e785fbfd47aa41ae05fa58bf12cb31dcbd0aeceb"},
     {url = "https://files.pythonhosted.org/packages/ff/dd/606cb34d8060ab1768cefe0e1f4658c21121f9cae13e8c4444a8dc1665eb/triton-2.0.0-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:bb4b99ca3c6844066e516658541d876c28a5f6e3a852286bbc97ad57134827fd"},
 ]
