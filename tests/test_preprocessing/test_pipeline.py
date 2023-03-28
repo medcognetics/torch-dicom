@@ -17,6 +17,9 @@ class TestPreprocessingPipeline:
 
         output_files = pipeline(dest)
 
+        # Check that we wrote the config file
+        assert (dest / "preprocess_config.json").is_file()
+
         # We expected 2x the number of files because we are passing file and dicom iterators.
         # However, outputs are named by SOPInstanceUID, so we should only get 1x the number of files.
         assert len(output_files) == len(dicoms)

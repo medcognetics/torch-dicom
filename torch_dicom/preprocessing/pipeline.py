@@ -17,6 +17,7 @@ from torch import Tensor
 from torch.utils.data import DataLoader
 from tqdm_multiprocessing import ConcurrentMapper
 
+from .. import __version__
 from ..datasets import AggregateInput, collate_fn, uncollate
 
 
@@ -119,6 +120,11 @@ class PreprocessingPipeline:
         if not dest.is_dir():
             raise NotADirectoryError(f"{dest} is not a directory")
 
+        # Write the config
+        config_path = dest / "preprocess_config.json"
+        with config_path.open("w") as f:
+            json.dump(self.to_dict(), f, indent=4)
+
         # Use multiple threads to speed up file output.
         # Input is already accelerated by DataLoader multi-processing.
         with ConcurrentMapper(threads=True, jobs=self.num_workers, ignore_exceptions=False) as mapper:
@@ -130,6 +136,19 @@ class PreprocessingPipeline:
         for transform in self.transforms:
             inp = transform(inp)
         return inp
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "version": __version__,
+            "transforms": [str(x) for x in self.transforms],
+            "batch_size": self.batch_size,
+            "num_workers": self.num_workers,
+            "prefetch_factor": self.prefetch_factor,
+            "device": str(self.device),
+            "volume_handler": str(self.volume_handler),
+            "dataloader_kwargs": self.dataloader_kwargs,
+            "use_bar": self.use_bar,
+        }
 
     @cached_property
     def dataloader(self) -> DataLoader:
@@ -156,8 +175,8 @@ class PreprocessingPipeline:
         assert isinstance(dicom, Dicom)
 
         # Save the DICOM
-        dest_path = dest / "images" / f"{dicom.SOPInstanceUID}.dcm"
-        dest_path.parent.mkdir(exist_ok=True)
+        dest_path = dest / "images" / f"{dicom.StudyInstanceUID}" / f"{dicom.SOPInstanceUID}.dcm"
+        dest_path.parent.mkdir(exist_ok=True, parents=True)
         dicom.save_as(dest_path)
 
         # Pop big objects
@@ -168,8 +187,8 @@ class PreprocessingPipeline:
         # Ensure any tensors are converted to lists
         result = recursive_tensor_to_list(result)
 
-        metadata_path = dest / "metadata" / f"{dicom.SOPInstanceUID}.json"
-        metadata_path.parent.mkdir(exist_ok=True)
+        metadata_path = dest / "metadata" / f"{dicom.StudyInstanceUID}" / f"{dicom.SOPInstanceUID}.json"
+        metadata_path.parent.mkdir(exist_ok=True, parents=True)
         with metadata_path.open("w") as f:
             json.dump(result, f)
 

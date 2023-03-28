@@ -22,7 +22,8 @@ def dicom_iterator(dicoms):
 def file_iterator(tmp_path, dicoms):
     files = []
     for i, dcm in enumerate(dicoms):
-        dest = Path(tmp_path, f"file_{i}.dcm")
+        dest = Path(tmp_path, "dicoms", f"file_{i}.dcm")
+        dest.parent.mkdir(parents=True, exist_ok=True)
         dcm.save_as(dest)
         files.append(dest)
     return iter(files)

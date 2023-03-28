@@ -520,10 +520,10 @@ summary = "World timezone definitions, modern and historical"
 
 [[package]]
 name = "registry"
-version = "0.1.1.dev13+gbbc2459"
+version = "0.1.1.dev14+g6eb5108"
 requires_python = ">=3.7"
 git = "https://github.com/TidalPaladin/callable-registry.git"
-revision = "bbc245975eb463574b1ecc468ec63220d3f0ccaa"
+revision = "6eb5108eddacd304e1258c650917e89060a29f78"
 summary = ""
 dependencies = [
     "typing-extensions; python_version < \"3.11\"",
