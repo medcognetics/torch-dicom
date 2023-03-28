@@ -40,12 +40,25 @@ def main(args: Namespace):
     else:
         transforms = []
 
+    inp = Path(args.input)
+    dest_dir = Path(args.output)
+    if not inp.exists():
+        raise FileNotFoundError(f"Input {inp} does not exist")  # pragma: no cover
+    if not dest_dir.is_dir():
+        raise NotADirectoryError(f"Output directory {dest_dir} does not exist")  # pragma: no cover
+
+    # `iterate_input_path` will recurse into the output directory, so we need to
+    # check that the output directory is not a subdirectory of the input directory.
+    if inp.is_dir() and dest_dir.is_relative_to(inp):
+        raise ValueError(f"Output directory {dest_dir} cannot be a subdirectory of input directory {inp}")
+
     # TODO: Batch size should be configurable. It is hard-coded to 1 for now because we
     # cannot collate inputs of different sizes. We should either pad inputs or disable
     # batching.
     print(f"NVJPEG Available: {nvjpeg2k_is_available()}")
+
     pipeline = PreprocessingPipeline(
-        iterate_input_path(args.input),
+        iterate_input_path(inp),
         num_workers=args.num_workers,
         batch_size=1,
         device=args.device,
