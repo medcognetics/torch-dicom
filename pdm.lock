@@ -108,10 +108,10 @@ dependencies = [
 
 [[package]]
 name = "dicom-utils"
-version = "0.1.dev84+gf89536d"
+version = "0.1.dev86+g55563d4"
 requires_python = ">=3.8"
 git = "https://github.com/medcognetics/dicom-utils.git"
-revision = "f89536d86832638d2c97d15476a1f35835b55504"
+revision = "55563d4706e80a44d9252ab2ca57dc499da97a24"
 summary = ""
 dependencies = [
     "Pillow",
@@ -632,7 +632,7 @@ summary = "Backport of pathlib-compatible object wrapper for zip files"
 
 [metadata]
 lock_version = "4.1"
-content_hash = "sha256:63892046847ce153b597f313743ceefddcb4981b9b6397e9356a21ace4eef67f"
+content_hash = "sha256:2b118d5862dd8ef8479794875958fb866ce4c315e7ac7e1516af85c1691a97e6"
 
 [metadata.files]
 "attrs 22.2.0" = [
