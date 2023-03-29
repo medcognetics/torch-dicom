@@ -21,8 +21,7 @@ dynamic = ["version"]
 
 [project.optional-dependencies]
 j2k = [
-    #"pynvjpeg2k @ git+ssh://git@github.com/medcognetics/pynvjpeg2k.git@feat/pdm",
-  "pynvjpeg @ file:///home/chase/Documents/pynvjpeg2k",
+  "pynvjpeg2k @ git+ssh://git@github.com/medcognetics/pynvjpeg2k.git",
 ]
 
 [tool.autoflake]
