@@ -11,10 +11,8 @@ class TestResize:
     @pytest.fixture(params=[torch.float32, torch.int32])
     def inp(self, request, depth, height, width):
         dtype = request.param
-        if depth > 1:
-            x = torch.ones((1, 1, depth, height, width), dtype=dtype)
-        else:
-            x = torch.ones((1, 1, height, width), dtype=dtype)
+        depth_tuple = (depth,) if depth > 1 else tuple()
+        x = torch.ones((1, 1) + depth_tuple + (height, width), dtype=dtype)
         return x
 
     @pytest.mark.parametrize("smart_pad", [True, False])
