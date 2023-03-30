@@ -9,25 +9,30 @@ from torch_dicom.preprocessing.resize import Resize
 
 class TestResize:
     @pytest.fixture(params=[torch.float32, torch.int32])
-    def inp(self, request, height, width):
+    def inp(self, request, depth, height, width):
         dtype = request.param
-        x = torch.ones((1, 1, height, width), dtype=dtype)
+        depth_tuple = (depth,) if depth > 1 else tuple()
+        x = torch.ones((1, 1) + depth_tuple + (height, width), dtype=dtype)
         return x
 
     @pytest.mark.parametrize("smart_pad", [True, False])
     @pytest.mark.parametrize("preserve_aspect_ratio", [True, False])
     @pytest.mark.parametrize(
-        "height, width, target_h, target_w, aspect_match",
+        "depth, height, width, target_h, target_w, aspect_match",
         [
-            (64, 64, 32, 32, True),
-            (64, 64, 64, 64, True),
-            (64, 64, 32, 16, False),
+            (1, 64, 64, 32, 32, True),
+            (1, 64, 64, 64, 64, True),
+            (1, 64, 64, 32, 16, False),
+            (3, 64, 64, 32, 32, True),
+            (3, 64, 64, 64, 64, True),
+            (3, 64, 64, 32, 16, False),
         ],
     )
     def test_resize(self, inp, target_h, target_w, aspect_match, preserve_aspect_ratio, smart_pad):
         resized = Resize.resize(inp, (target_h, target_w), preserve_aspect_ratio, smart_pad=smart_pad)
         img = resized["img"]
-        assert img.shape == (1, 1, target_h, target_w)
+        assert img.ndim == inp.ndim
+        assert img.shape[-2:] == (target_h, target_w)
 
         if aspect_match or not preserve_aspect_ratio:
             assert resized["resized_h"] == target_h
@@ -37,10 +42,10 @@ class TestResize:
             assert (img != 1).any()
 
     @pytest.mark.parametrize(
-        "height, width, target_h, target_w, coords, exp",
+        "depth, height, width, target_h, target_w, coords, exp",
         [
-            (64, 64, 32, 32, (32, 32), (16, 16)),
-            (64, 64, 32, 16, (32, 32), (8, 16)),
+            (1, 64, 64, 32, 32, (32, 32), (16, 16)),
+            (1, 64, 64, 32, 16, (32, 32), (8, 16)),
         ],
     )
     def test_apply_to_coords(self, inp, target_h, target_w, coords, exp):
@@ -51,11 +56,11 @@ class TestResize:
         assert torch.allclose(coords_resized, exp)
 
     @pytest.mark.parametrize(
-        "height, width, target_h, target_w",
+        "depth, height, width, target_h, target_w",
         [
-            (64, 64, 32, 32),
-            (64, 64, 64, 64),
-            (64, 64, 32, 16),
+            (1, 64, 64, 32, 32),
+            (1, 64, 64, 64, 64),
+            (1, 64, 64, 32, 16),
         ],
     )
     def test_coords_round_trip(self, inp, target_h, target_w):

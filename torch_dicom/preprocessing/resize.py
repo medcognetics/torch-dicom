@@ -6,14 +6,17 @@ from dataclasses import dataclass
 from typing import Any, Dict, Optional, Tuple, Union, cast
 
 import torch
-from einops import parse_shape, rearrange
+from einops import rearrange
 from torch import Tensor
 
 from .crop import E
 
 
-def make_tensor_like(proto: Tensor, value: Any) -> Tensor:
-    return proto.new_tensor(value) if not isinstance(value, Tensor) else value.type_as(proto)
+def make_tensor_like(proto: Tensor, value: Any, expand: bool = False, **kwargs) -> Tensor:
+    result = proto.new_tensor(value, **kwargs) if not isinstance(value, Tensor) else value.type_as(proto)
+    if expand:
+        result = result.expand_as(proto)
+    return result
 
 
 @dataclass
@@ -115,7 +118,7 @@ class Resize:
         if x.ndim < 3:
             raise ValueError(f"Expected input to have at least 3 dimensions, got {x.ndim}")
 
-        orig_shape = parse_shape(x, "b ... h w")
+        orig_shape = x.shape
         orig_dtype = x.dtype
         if x.ndim > 3:
             x = rearrange(x, "b ... h w -> (b ...) h w")
@@ -158,21 +161,41 @@ class Resize:
 
             else:
                 # Choose horizontal padding to be centered
-                pad_left = (W_target - W_new) // 2
+                pad_left = x.new_tensor((W_target - W_new) // 2, dtype=torch.long)
 
             result_dict["padding_top"] = pad_top.cpu() if isinstance(pad_top, Tensor) else pad_top
             result_dict["padding_left"] = pad_left.cpu() if isinstance(pad_left, Tensor) else pad_left
 
-            # Pad image
-            batch_index = torch.arange(N, device=x.device)
+            # Separate out the bounds and convert to tensor
+            lb_H = make_tensor_like(x, pad_top).view(-1).expand(N)
+            ub_H = make_tensor_like(x, pad_top + H_new).view(-1).expand(N)
+            lb_W = make_tensor_like(x, pad_left).view(-1).expand(N)
+            ub_W = make_tensor_like(x, pad_left + W_new).view(-1).expand(N)
+            lb_H, ub_H, lb_W, ub_W = torch.broadcast_tensors(lb_H, ub_H, lb_W, ub_W)
+
+            # Build indices where we want to copy to
+            idx_N = torch.arange(N).view(N, 1, 1, 1)
+            idx_C = torch.arange(1).view(1, 1, 1, 1)
+            idx_H = torch.stack([torch.arange(lb_H[i], ub_H[i], dtype=torch.long) for i in range(N)], dim=0).view(
+                N, 1, -1, 1
+            )
+            idx_W = torch.stack([torch.arange(lb_W[i], ub_W[i], dtype=torch.long) for i in range(N)], dim=0).view(
+                N, 1, 1, -1
+            )
+            idx_N, idx_C, idx_H, idx_W = torch.broadcast_tensors(idx_N, idx_C, idx_H, idx_W)
+
+            # Allocate result tensor and copy from original image
             result = x.new_full((N, 1, H_target, W_target), fill_value=fill_value)
-            result[batch_index, :, pad_top : H_new + pad_top, pad_left : W_new + pad_left] = x
+            result[
+                idx_N.flatten(),
+                idx_C.view(-1),
+                idx_H.flatten(),
+                idx_W.flatten(),
+            ] = x.view(-1)
             x = result
 
         # restore original shape but with resized dimensions
-        orig_shape["h"] = H_target
-        orig_shape["w"] = W_target
-        x = rearrange(x, "b ... h w -> b ... h w", **orig_shape)
+        x = x.view(*orig_shape[:-2], H_target, W_target)
         result_dict["img"] = x.to(orig_dtype)
 
         return result_dict

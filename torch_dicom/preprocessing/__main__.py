@@ -2,14 +2,26 @@
 # -*- coding: utf-8 -*-
 from argparse import ArgumentParser, Namespace
 from pathlib import Path
+from typing import cast
 
+import numpy as np
 import torch
 from dicom_utils.container.collection import iterate_input_path
 from dicom_utils.dicom import nvjpeg2k_is_available
+from dicom_utils.volume import KeepVolume, ReduceVolume, SliceAtLocation, VolumeHandler
+from registry import Registry
 
 from .crop import MinMaxCrop
 from .pipeline import PreprocessingPipeline
 from .resize import Resize
+
+
+VOLUME_HANDLERS = Registry("volume handlers")
+
+VOLUME_HANDLERS(name="keep")(KeepVolume)
+VOLUME_HANDLERS(name="max")(ReduceVolume)
+VOLUME_HANDLERS(name="mean", reduction=np.mean)(ReduceVolume)
+VOLUME_HANDLERS(name="slice")(SliceAtLocation)
 
 
 def parse_args() -> Namespace:
@@ -24,6 +36,7 @@ def parse_args() -> Namespace:
     )
     parser.add_argument("-p", "--prefetch-factor", type=int, default=4, help="Prefetch factor for dataloader")
     parser.add_argument("-s", "--size", nargs=2, type=int, default=None, help="Output image size")
+    parser.add_argument("-v", "--volume-handler", default="keep", help="Volume handler")
     return parser.parse_args()
 
 
@@ -57,6 +70,7 @@ def main(args: Namespace):
     # batching.
     print(f"NVJPEG Available: {nvjpeg2k_is_available()}")
 
+    volume_handler = cast(VolumeHandler, VOLUME_HANDLERS.get(args.volume_handler).instantiate_with_metadata())
     pipeline = PreprocessingPipeline(
         iterate_input_path(inp),
         num_workers=args.num_workers,
@@ -64,6 +78,7 @@ def main(args: Namespace):
         device=args.device,
         prefetch_factor=args.prefetch_factor,
         transforms=transforms,
+        volume_handler=volume_handler,
     )
     pipeline(args.output)
 
