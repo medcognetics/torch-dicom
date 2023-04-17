@@ -108,8 +108,9 @@ class TestDicomInput:
         assert out.min() == 0 and out.max() == 1
 
     @pytest.mark.parametrize("normalize", [True, False])
-    def test_iter(self, dataset_input, normalize):
-        ds = iter(self.TEST_CLASS(dataset_input, normalize=normalize))
+    @pytest.mark.parametrize("ignore_zero", [True, False])
+    def test_iter(self, dataset_input, normalize, ignore_zero):
+        ds = iter(self.TEST_CLASS(dataset_input, normalize=normalize, ignore_zero=ignore_zero))
         seen = 0
         for example in ds:
             seen += 1
@@ -167,9 +168,10 @@ class TestDicomPathInput(TestDicomInput):
         return file_iterator
 
     @pytest.mark.parametrize("normalize", [True, False])
-    def test_iter(self, dataset_input, normalize):
+    @pytest.mark.parametrize("ignore_zero", [True, False])
+    def test_iter(self, dataset_input, normalize, ignore_zero):
         dataset_input = list(dataset_input)
-        ds = iter(self.TEST_CLASS(dataset_input, normalize=normalize))
+        ds = iter(self.TEST_CLASS(dataset_input, normalize=normalize, ignore_zero=ignore_zero))
         seen = 0
         for i, example in enumerate(ds):
             seen += 1

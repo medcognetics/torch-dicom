@@ -164,7 +164,7 @@ class PreprocessingPipeline:
             shuffle=False,
             num_workers=self.num_workers,
             pin_memory=self.device.type == "cuda",
-            prefetch_factor=self.prefetch_factor,
+            prefetch_factor=self.prefetch_factor if self.num_workers > 0 else None,
             collate_fn=collate_fn,
             **self.dataloader_kwargs,
         )

@@ -186,6 +186,7 @@ class DicomInput(IterableDataset):
         skip_errors: If True, errors are ignored and the next DICOM is loaded. If False, the error is raised.
         volume_handler: Volume handler to be used to load the DICOM image.
         normalize: If True, the image is normalized to [0, 1].
+        ignore_zero: If True, the image is normalized to [0, 1] ignoring zeros.
     """
 
     def __init__(
@@ -196,6 +197,7 @@ class DicomInput(IterableDataset):
         skip_errors: bool = False,
         volume_handler: VolumeHandler = SliceAtLocation(),
         normalize: bool = True,
+        ignore_zero: bool = True,
     ):
         self.dicoms = dicoms
         self.img_size = img_size
@@ -203,6 +205,7 @@ class DicomInput(IterableDataset):
         self.skip_errors = skip_errors
         self.volume_handler = volume_handler
         self.normalize = normalize
+        self.ignore_zero = ignore_zero
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(img_size={self.img_size})"
@@ -211,7 +214,9 @@ class DicomInput(IterableDataset):
         iterable = slice_iterable_for_multiprocessing(self.dicoms)
         for dcm in iterable:
             try:
-                yield self.load_example(dcm, self.img_size, self.transform, self.volume_handler, self.normalize)
+                yield self.load_example(
+                    dcm, self.img_size, self.transform, self.volume_handler, self.normalize, self.ignore_zero
+                )
             except Exception as ex:
                 if not self.skip_errors:
                     raise
@@ -226,6 +231,7 @@ class DicomInput(IterableDataset):
         transform: Optional[Callable] = None,
         volume_handler: VolumeHandler = SliceAtLocation(),
         normalize: bool = True,
+        ignore_zero: bool = True,
     ) -> DicomExample:
         r"""Loads a single DICOM example.
 
@@ -238,7 +244,7 @@ class DicomInput(IterableDataset):
         Returns:
             A DicomExample
         """
-        example = DicomInput.load_raw_example(dcm, img_size, volume_handler, normalize)
+        example = DicomInput.load_raw_example(dcm, img_size, volume_handler, normalize, ignore_zero)
         result = filter_collatable_types(example)
 
         if transform is not None:
@@ -252,17 +258,29 @@ class DicomInput(IterableDataset):
         dcm: Dicom,
         volume_handler: VolumeHandler = SliceAtLocation(),
         normalize: bool = True,
+        ignore_zero: bool = True,
     ) -> Tensor:
         pixels = torch.from_numpy(read_dicom_image(dcm, volume_handler=volume_handler).astype(np.int32))
         if normalize:
-            pixels = cls.normalize_pixels(pixels)
+            pixels = cls.normalize_pixels(pixels, ignore_zero=ignore_zero)
         return pixels
 
     @classmethod
-    def normalize_pixels(cls, pixels: Tensor, eps: float = 1e-6) -> Tensor:
-        pmin, pmax = pixels.aminmax()
+    def normalize_pixels(
+        cls,
+        pixels: Tensor,
+        eps: float = 1e-6,
+        ignore_zero: bool = True,
+    ) -> Tensor:
+        # Some mammograms have a lot of black pixels, so we have an option to ignore them when normalizing.
+        # This improves contrast.
+        considered_for_normalize = pixels[pixels != 0] if ignore_zero else pixels
+        if not considered_for_normalize.numel():
+            considered_for_normalize = pixels
+
+        pmin, pmax = considered_for_normalize.aminmax()
         delta = (pmax - pmin).clip(min=eps)
-        pixels = (pixels.float() - pmin).div_(delta)
+        pixels = (pixels.float() - pmin).div_(delta).clip_(min=0, max=1)
         return pixels
 
     @classmethod
@@ -272,6 +290,7 @@ class DicomInput(IterableDataset):
         img_size: Optional[Tuple[int, int]] = None,
         volume_handler: VolumeHandler = SliceAtLocation(),
         normalize: bool = True,
+        ignore_zero: bool = True,
     ) -> DicomExample:
         r"""Loads an example, but does not perform any transforms.
 
@@ -280,6 +299,7 @@ class DicomInput(IterableDataset):
             img_size: Size of the image to be returned. If None, the original image size is returned.
             volume_handler: Volume handler to be used to load the DICOM image.
             normalize: If True, the image is normalized to [0, 1].
+            ignore_zero: If True, the image is normalized to [0, 1] ignoring zero values.
 
         Returns:
             A DicomExample without transforms applied
@@ -287,7 +307,7 @@ class DicomInput(IterableDataset):
         if not isinstance(dcm, Dicom):
             raise TypeError(f"Expected Dicom object, got {type(dcm)}")
 
-        pixels = cls.load_pixels(dcm, volume_handler, normalize)
+        pixels = cls.load_pixels(dcm, volume_handler, normalize, ignore_zero)
 
         img_size_tensor = torch.tensor(pixels.shape[-2:], dtype=torch.long)
         if img_size is not None:
@@ -334,6 +354,7 @@ class DicomPathInput(DicomInput, PathInput):
         skip_errors: bool = False,
         volume_handler: VolumeHandler = SliceAtLocation(),
         normalize: bool = True,
+        ignore_zero: bool = True,
     ):
         self.dicoms = paths
         self.img_size = img_size
@@ -341,6 +362,7 @@ class DicomPathInput(DicomInput, PathInput):
         self.skip_errors = skip_errors
         self.volume_handler = volume_handler
         self.normalize = normalize
+        self.ignore_zero = ignore_zero
 
     @classmethod
     def load_example(
@@ -350,9 +372,10 @@ class DicomPathInput(DicomInput, PathInput):
         transform: Optional[Callable] = None,
         volume_handler: VolumeHandler = SliceAtLocation(),
         normalize: bool = True,
+        ignore_zero: bool = True,
     ) -> DicomExample:
         with pydicom.dcmread(path) as dcm:
-            example = super().load_example(dcm, img_size, transform, volume_handler, normalize)
+            example = super().load_example(dcm, img_size, transform, volume_handler, normalize, ignore_zero)
         example["record"] = replace(example["record"], path=path)
         return cast(DicomExample, example)
 
@@ -377,12 +400,14 @@ class DicomPathDataset(PathDataset):
         transform: Optional[Callable] = None,
         volume_handler: VolumeHandler = SliceAtLocation(),
         normalize: bool = True,
+        ignore_zero: bool = True,
     ):
         super().__init__(paths)
         self.img_size = img_size
         self.transform = transform
         self.volume_handler = volume_handler
         self.normalize = normalize
+        self.ignore_zero = ignore_zero
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({len(self)}, img_size={self.img_size})"
@@ -391,11 +416,15 @@ class DicomPathDataset(PathDataset):
         if not 0 <= idx <= len(self):
             raise IndexError(f"Index {idx} is invalid for dataset length {len(self)}")
         path = self.files[idx]
-        return self.load_example(path, self.img_size, self.transform, self.volume_handler, self.normalize)
+        return self.load_example(
+            path, self.img_size, self.transform, self.volume_handler, self.normalize, self.ignore_zero
+        )
 
     def __iter__(self) -> Iterator[DicomExample]:
         for path in self.files:
-            yield self.load_example(path, self.img_size, self.transform, self.volume_handler, self.normalize)
+            yield self.load_example(
+                path, self.img_size, self.transform, self.volume_handler, self.normalize, self.ignore_zero
+            )
 
     @classmethod
     def load_example(
@@ -405,5 +434,6 @@ class DicomPathDataset(PathDataset):
         transform: Optional[Callable] = None,
         volume_handler: VolumeHandler = SliceAtLocation(),
         normalize: bool = True,
+        ignore_zero: bool = True,
     ) -> DicomExample:
-        return DicomPathInput.load_example(path, img_size, transform, volume_handler, normalize)
+        return DicomPathInput.load_example(path, img_size, transform, volume_handler, normalize, ignore_zero)

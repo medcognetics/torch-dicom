@@ -23,6 +23,15 @@ VOLUME_HANDLERS(name="max")(ReduceVolume)
 VOLUME_HANDLERS(name="mean", reduction=np.mean)(ReduceVolume)
 VOLUME_HANDLERS(name="slice")(SliceAtLocation)
 
+# Multi-frame reductions
+for output_frames in (1, 6, 12):
+    for skip_edge_frames in (0, 5, 10):
+        VOLUME_HANDLERS(
+            name=f"max-{output_frames}-{skip_edge_frames}",
+            output_frames=output_frames,
+            skip_edge_frames=skip_edge_frames,
+        )(ReduceVolume)
+
 
 def parse_args() -> Namespace:
     parser = ArgumentParser(prog="dicom-preprocess")
@@ -70,7 +79,7 @@ def main(args: Namespace):
     # batching.
     print(f"NVJPEG Available: {nvjpeg2k_is_available()}")
 
-    volume_handler = cast(VolumeHandler, VOLUME_HANDLERS.get(args.volume_handler).instantiate_with_metadata())
+    volume_handler = cast(VolumeHandler, VOLUME_HANDLERS.get(args.volume_handler).instantiate_with_metadata().fn)
     pipeline = PreprocessingPipeline(
         iterate_input_path(inp),
         num_workers=args.num_workers,
