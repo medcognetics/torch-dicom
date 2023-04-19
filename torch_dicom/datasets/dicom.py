@@ -30,7 +30,7 @@ import torch
 import torch.nn.functional as F
 from dicom_utils.container import DicomImageFileRecord, FileRecord, RecordCreator
 from dicom_utils.dicom import Dicom, read_dicom_image
-from dicom_utils.volume import SliceAtLocation, VolumeHandler
+from dicom_utils.volume import ReduceVolume, VolumeHandler
 from torch import Tensor
 from torch.utils.data import IterableDataset, default_collate, get_worker_info
 
@@ -194,7 +194,7 @@ class DicomInput(IterableDataset):
         img_size: Optional[Tuple[int, int]] = None,
         transform: Optional[Callable] = None,
         skip_errors: bool = False,
-        volume_handler: VolumeHandler = SliceAtLocation(),
+        volume_handler: VolumeHandler = ReduceVolume(),
         normalize: bool = True,
     ):
         self.dicoms = dicoms
@@ -224,7 +224,7 @@ class DicomInput(IterableDataset):
         dcm: Dicom,
         img_size: Optional[Tuple[int, int]],
         transform: Optional[Callable] = None,
-        volume_handler: VolumeHandler = SliceAtLocation(),
+        volume_handler: VolumeHandler = ReduceVolume(),
         normalize: bool = True,
     ) -> DicomExample:
         r"""Loads a single DICOM example.
@@ -250,7 +250,7 @@ class DicomInput(IterableDataset):
     def load_pixels(
         cls,
         dcm: Dicom,
-        volume_handler: VolumeHandler = SliceAtLocation(),
+        volume_handler: VolumeHandler = ReduceVolume(),
         normalize: bool = True,
     ) -> Tensor:
         pixels = torch.from_numpy(read_dicom_image(dcm, volume_handler=volume_handler).astype(np.int32))
@@ -270,7 +270,7 @@ class DicomInput(IterableDataset):
         cls,
         dcm: Dicom,
         img_size: Optional[Tuple[int, int]] = None,
-        volume_handler: VolumeHandler = SliceAtLocation(),
+        volume_handler: VolumeHandler = ReduceVolume(),
         normalize: bool = True,
     ) -> DicomExample:
         r"""Loads an example, but does not perform any transforms.
@@ -332,7 +332,7 @@ class DicomPathInput(DicomInput, PathInput):
         img_size: Optional[Tuple[int, int]] = None,
         transform: Optional[Callable] = None,
         skip_errors: bool = False,
-        volume_handler: VolumeHandler = SliceAtLocation(),
+        volume_handler: VolumeHandler = ReduceVolume(),
         normalize: bool = True,
     ):
         self.dicoms = paths
@@ -348,7 +348,7 @@ class DicomPathInput(DicomInput, PathInput):
         path: Path,
         img_size: Optional[Tuple[int, int]],
         transform: Optional[Callable] = None,
-        volume_handler: VolumeHandler = SliceAtLocation(),
+        volume_handler: VolumeHandler = ReduceVolume(),
         normalize: bool = True,
     ) -> DicomExample:
         with pydicom.dcmread(path) as dcm:
@@ -375,7 +375,7 @@ class DicomPathDataset(PathDataset):
         paths: Iterator[Path],
         img_size: Optional[Tuple[int, int]] = None,
         transform: Optional[Callable] = None,
-        volume_handler: VolumeHandler = SliceAtLocation(),
+        volume_handler: VolumeHandler = ReduceVolume(),
         normalize: bool = True,
     ):
         super().__init__(paths)
@@ -403,7 +403,7 @@ class DicomPathDataset(PathDataset):
         path: Path,
         img_size: Optional[Tuple[int, int]],
         transform: Optional[Callable] = None,
-        volume_handler: VolumeHandler = SliceAtLocation(),
+        volume_handler: VolumeHandler = ReduceVolume(),
         normalize: bool = True,
     ) -> DicomExample:
         return DicomPathInput.load_example(path, img_size, transform, volume_handler, normalize)
