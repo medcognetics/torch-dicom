@@ -33,6 +33,7 @@ from dicom_utils.dicom import Dicom, read_dicom_image
 from dicom_utils.volume import SliceAtLocation, VolumeHandler
 from torch import Tensor
 from torch.utils.data import IterableDataset, default_collate, get_worker_info
+from torch.utils.data._utils.collate import collate, default_collate_fn_map
 
 from .path import PathDataset, PathInput
 
@@ -49,11 +50,17 @@ class DicomExample(TypedDict):
     dicom: Dicom
 
 
+def _collate_tensor_with_broadcast(batch: Sequence[Tensor], collate_fn_map: Dict) -> Tensor:
+    batch = torch.broadcast_tensors(*batch)
+    return cast(Tensor, collate(batch, collate_fn_map=default_collate_fn_map))
+
+
 def collate_fn(
     batch: Sequence[D],
     default_fallback: bool = True,
     list_types: Tuple[Type, ...] = LIST_COLLATE_TYPES,
     dataclasses_as_lists: bool = True,
+    broadcast_tensors: bool = False,
 ) -> D:
     r"""Collate function that supports Paths and FileRecords.
     All inputs should be dictionaries with the same keys. Any key that is a
@@ -67,14 +74,20 @@ def collate_fn(
             there is an error or all inputs are not dictionaries.
         list_types: The custom types to collate into a list.
         dataclasses_as_lists: If True, dataclasses will be collated as lists.
+        broadcast_tensors: If True, tensors will be broadcasted to the largest
+            size in the batch.
 
     Returns:
         The collated batch.
     """
+    collate_fn_map = copy(default_collate_fn_map)
+    if broadcast_tensors:
+        collate_fn_map[Tensor] = _collate_tensor_with_broadcast
+
     # use default collate unless all batch elements are dicts
     if not all(isinstance(b, dict) for b in batch):
         if default_fallback:
-            return default_collate(cast(List[Any], batch))
+            return cast(D, collate(cast(List[Any], batch), collate_fn_map=collate_fn_map))
         else:
             raise TypeError("All inputs must be dictionaries.")
 
@@ -121,8 +134,8 @@ def collate_fn(
 
     except Exception as e:
         if default_fallback:
-            warnings.warn(f"Collating batch raised {e}, falling back to default collate")
-            return default_collate(cast(List[Any], batch))
+            warnings.warn(f"Collating batch raised '{e}', falling back to default collate")
+            return cast(D, collate(cast(List[Any], batch), collate_fn_map=collate_fn_map))
         else:
             raise e
 
