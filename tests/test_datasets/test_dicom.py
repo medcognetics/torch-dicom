@@ -9,6 +9,7 @@ import torch
 from dicom_utils.container import MammogramFileRecord
 from dicom_utils.dicom import Dicom
 from dicom_utils.dicom_factory import DicomFactory
+from dicom_utils.volume import KeepVolume, ReduceVolume
 from torch import Tensor
 from torch.utils.data import DataLoader
 
@@ -108,12 +109,19 @@ class TestDicomInput:
         assert out.min() == 0 and out.max() == 1
 
     @pytest.mark.parametrize("normalize", [True, False])
-    def test_iter(self, dataset_input, normalize):
-        ds = iter(self.TEST_CLASS(dataset_input, normalize=normalize))
+    @pytest.mark.parametrize("volume_handler", [ReduceVolume(), KeepVolume()])
+    @pytest.mark.parametrize("img_size", [(2048, 1536), (1024, 768)])
+    def test_iter(self, dataset_input, normalize, volume_handler, img_size):
+        ds = iter(self.TEST_CLASS(dataset_input, normalize=normalize, volume_handler=volume_handler, img_size=img_size))
         seen = 0
         for example in ds:
             seen += 1
-            assert example["img"].shape == (1, 2048, 1536)
+            expected_shape = (
+                (1, 3, *img_size)
+                if isinstance(volume_handler, KeepVolume) and not example["record"].is_2d
+                else (1, *img_size)
+            )
+            assert example["img"].shape == expected_shape
             assert example["img"].dtype == (torch.float if normalize else torch.int32)
             assert isinstance(example["img_size"], Tensor) and example["img_size"].shape == (2,)
             assert isinstance(example["record"], MammogramFileRecord)
