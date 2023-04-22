@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+import warnings
 from copy import deepcopy
 from typing import ClassVar
 
@@ -92,3 +93,13 @@ class TestTensorPathDataset(TestTensorPathInput):
         assert example["img"].shape == (1, 2048, 1536) and example["img"].dtype == torch.float
         assert isinstance(example["img_size"], Tensor) and example["img_size"].shape == (2,)
         assert example["path"] == dataset_input[0]
+
+
+@pytest.mark.parametrize("broadcast_tensors", [True, pytest.param(False, marks=pytest.mark.xfail(strict=True))])
+def test_collate_with_broadcast(broadcast_tensors):
+    e1 = {"img": torch.rand(1, 32, 32)}
+    e2 = {"img": torch.rand(4, 32, 32)}
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        result = collate_fn([e1, e2], broadcast_tensors=broadcast_tensors)
+    assert result["img"].shape == (2, 4, 32, 32)
