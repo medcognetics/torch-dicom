@@ -113,11 +113,12 @@ class TestDicomInput:
     @pytest.mark.parametrize("img_size", [(2048, 1536), (1024, 768)])
     def test_iter(self, dataset_input, normalize, volume_handler, img_size):
         ds = iter(self.TEST_CLASS(dataset_input, normalize=normalize, volume_handler=volume_handler, img_size=img_size))
+        expected_num_frames = 3 if isinstance(volume_handler, KeepVolume) else None
         seen = 0
         for example in ds:
             seen += 1
             expected_shape = (
-                (1, 3, *img_size)
+                (1, expected_num_frames, *img_size)
                 if isinstance(volume_handler, KeepVolume) and not example["record"].is_2d
                 else (1, *img_size)
             )
