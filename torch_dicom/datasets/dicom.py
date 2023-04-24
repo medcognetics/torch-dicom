@@ -199,6 +199,9 @@ class DicomInput(IterableDataset):
         skip_errors: If True, errors are ignored and the next DICOM is loaded. If False, the error is raised.
         volume_handler: Volume handler to be used to load the DICOM image.
         normalize: If True, the image is normalized to [0, 1].
+
+    Shapes:
+        - ``'img'``: :math:`(C, H, W)` for 2D images, :math:`(C, D, H, W)` for 3D volumes.
     """
 
     def __init__(
@@ -285,6 +288,7 @@ class DicomInput(IterableDataset):
         img_size: Optional[Tuple[int, int]] = None,
         volume_handler: VolumeHandler = ReduceVolume(),
         normalize: bool = True,
+        resize_mode: str = "bilinear",
     ) -> DicomExample:
         r"""Loads an example, but does not perform any transforms.
 
@@ -293,6 +297,7 @@ class DicomInput(IterableDataset):
             img_size: Size of the image to be returned. If None, the original image size is returned.
             volume_handler: Volume handler to be used to load the DICOM image.
             normalize: If True, the image is normalized to [0, 1].
+            resize_mode: Interpolation mode to use when resizing the image.
 
         Returns:
             A DicomExample without transforms applied
@@ -304,7 +309,23 @@ class DicomInput(IterableDataset):
 
         img_size_tensor = torch.tensor(pixels.shape[-2:], dtype=torch.long)
         if img_size is not None:
-            pixels = F.interpolate(pixels.unsqueeze_(0), img_size, mode="nearest").squeeze_(0)
+            H, W = pixels.shape[-2:]
+            Ht, Wt = img_size
+            if H != Ht or W != Wt:
+                # Ensure that the pixel type is preserved
+                pixel_type = pixels.dtype
+                pixels = pixels if pixels.is_floating_point() else pixels.float()
+
+                # Pixel shape may be (C H W) or (C D H W) for volumes. Ensure we have 4 dims for interpolate
+                is_volume = pixels.ndim == 4
+                pixels = pixels if is_volume else pixels.unsqueeze_(0)
+
+                # Run resize
+                pixels = F.interpolate(pixels, img_size, mode=resize_mode)
+
+                # Restore shape and dtype
+                pixels = pixels if is_volume else pixels.squeeze_(0)
+                pixels = pixels.to(dtype=pixel_type)
 
         creator = RecordCreator()
         rec = creator(DUMMY_PATH, dcm)
@@ -337,6 +358,9 @@ class DicomPathInput(DicomInput, PathInput):
         transform: Optional transform to be applied to the image.
         skip_errors: If True, errors are ignored and the next DICOM is loaded. If False, the error is raised.
         volume_handler: Volume handler to be used to load the DICOM image.
+
+    Shapes:
+        - ``'img'``: :math:`(C, H, W)` for 2D images, :math:`(C, D, H, W)` for 3D volumes.
     """
 
     def __init__(
@@ -381,6 +405,9 @@ class DicomPathDataset(PathDataset):
         transform: Optional transform to be applied to the image.
         skip_errors: If True, errors are ignored and the next DICOM is loaded. If False, the error is raised.
         volume_handler: Volume handler to be used to load the DICOM image.
+
+    Shapes:
+        - ``'img'``: :math:`(C, H, W)` for 2D images, :math:`(C, D, H, W)` for 3D volumes.
     """
 
     def __init__(
