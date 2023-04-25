@@ -163,8 +163,10 @@ class Resize:
                 # Choose horizontal padding to be centered
                 pad_left = x.new_tensor((W_target - W_new) // 2, dtype=torch.long)
 
-            result_dict["padding_top"] = pad_top.cpu() if isinstance(pad_top, Tensor) else pad_top
-            result_dict["padding_left"] = pad_left.cpu() if isinstance(pad_left, Tensor) else pad_left
+            # Attach padding to result dict. We use amax() here because the padding may be a tensor with
+            # length > 1. In reality, all padding values should be the same under the current implementation.
+            result_dict["padding_top"] = pad_top.cpu().amax() if isinstance(pad_top, Tensor) else pad_top
+            result_dict["padding_left"] = pad_left.cpu().amax() if isinstance(pad_left, Tensor) else pad_left
 
             # Separate out the bounds and convert to tensor
             lb_H = make_tensor_like(x, pad_top).view(-1).expand(N)

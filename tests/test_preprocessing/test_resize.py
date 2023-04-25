@@ -8,11 +8,15 @@ from torch_dicom.preprocessing.resize import Resize
 
 
 class TestResize:
+    @pytest.fixture(params=[1, 3])
+    def batch_size(self, request):
+        return request.param
+
     @pytest.fixture(params=[torch.float32, torch.int32])
-    def inp(self, request, depth, height, width):
+    def inp(self, request, batch_size, depth, height, width):
         dtype = request.param
         depth_tuple = (depth,) if depth > 1 else tuple()
-        x = torch.ones((1, 1) + depth_tuple + (height, width), dtype=dtype)
+        x = torch.ones((batch_size, 1) + depth_tuple + (height, width), dtype=dtype)
         return x
 
     @pytest.mark.parametrize("smart_pad", [True, False])
