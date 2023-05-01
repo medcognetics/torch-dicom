@@ -23,6 +23,15 @@ VOLUME_HANDLERS(name="max")(ReduceVolume)
 VOLUME_HANDLERS(name="mean", reduction=np.mean)(ReduceVolume)
 VOLUME_HANDLERS(name="slice")(SliceAtLocation)
 
+# Multi-frame reductions
+for output_frames in (1, 8, 10, 16):
+    for skip_edge_frames in (0, 5, 10):
+        VOLUME_HANDLERS(
+            name=f"max-{output_frames}-{skip_edge_frames}",
+            output_frames=output_frames,
+            skip_edge_frames=skip_edge_frames,
+        )(ReduceVolume)
+
 
 def parse_args() -> Namespace:
     parser = ArgumentParser(prog="dicom-preprocess")
