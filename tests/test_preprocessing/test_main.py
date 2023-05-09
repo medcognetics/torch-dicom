@@ -10,10 +10,11 @@ from torch_dicom.preprocessing import PreprocessingPipeline
 
 
 @pytest.mark.usefixtures("file_iterator")
-def test_main(tmp_path, mocker):
+def test_main(tmp_path, files, mocker):
+    dicom_dir = files[0].parent
     m = mocker.MagicMock(spec_set=PreprocessingPipeline)
     mocker.patch("torch_dicom.preprocessing.PreprocessingPipeline", new=m)
-    src = tmp_path / "dicoms"
+    src = dicom_dir
     dest = tmp_path / "dest"
     dest.mkdir()
 
