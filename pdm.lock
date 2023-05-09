@@ -102,11 +102,10 @@ dependencies = [
 
 [[package]]
 name = "dicom-utils"
-version = "0.1.dev93+g3fb258b"
+version = "0.1.dev93+gacebf09"
 requires_python = ">=3.8"
 git = "https://github.com/medcognetics/dicom-utils.git"
-ref = "feat/voi-override"
-revision = "3fb258b9ca66442ab6e90cd5c519172deda323cb"
+revision = "acebf09a2c6219dd05264b812c72f771d05a269c"
 summary = ""
 dependencies = [
     "Pillow",
@@ -645,7 +644,7 @@ summary = "Backport of pathlib-compatible object wrapper for zip files"
 [metadata]
 lock_version = "4.2"
 groups = ["default", "j2k", "quality", "test"]
-content_hash = "sha256:f276cebc084e3142b7f6dfe89223625516934bd5f3bb838340bafaf1394118f2"
+content_hash = "sha256:54fe4af05f372b7815d37038f3f214e358553f789ed938ba7a40ef8794c4f7d5"
 
 [metadata.files]
 "autoflake 2.1.1" = [
