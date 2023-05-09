@@ -152,10 +152,14 @@ class PreprocessingPipeline:
 
     @cached_property
     def dataloader(self) -> DataLoader:
+        # NOTE: We don't want to normalize the images here because we want them to be int dtype.
+        # We don't want to apply the voi_lut here because it will be applied when loading the
+        # preprocessed image and applying the voi_lut again will cause the image to be incorrect.
         ds = AggregateInput(
             dicom_paths=self.dicom_paths,
             dicoms=self.dicoms,
             normalize=False,
+            voi_lut=False,
             volume_handler=self.volume_handler,
         )
         return DataLoader(

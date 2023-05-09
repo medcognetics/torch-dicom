@@ -13,7 +13,7 @@ dependencies = [
   "einops",
   "torch>=1.11.0",
   "pandas",
-  "dicom-utils @ git+https://github.com/medcognetics/dicom-utils.git",
+  "dicom-utils @ git+https://github.com/medcognetics/dicom-utils.git@feat/voi-override",
 ]
 readme = "README.md"
 license = {text = "Apache"}
