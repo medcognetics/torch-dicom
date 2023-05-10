@@ -102,10 +102,10 @@ dependencies = [
 
 [[package]]
 name = "dicom-utils"
-version = "0.1.dev93+gacebf09"
+version = "0.1.dev94+g60b7717"
 requires_python = ">=3.8"
 git = "https://github.com/medcognetics/dicom-utils.git"
-revision = "acebf09a2c6219dd05264b812c72f771d05a269c"
+revision = "60b771715193f86b889b8b90eda7618dafca9707"
 summary = ""
 dependencies = [
     "Pillow",

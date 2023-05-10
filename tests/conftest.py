@@ -15,6 +15,11 @@ def dicoms():
     fact = CompleteMammographyStudyFactory(Rows=2048, Columns=1536, seed=42, WindowCenter=5, WindowWidth=4)
     dicoms = fact()
 
+    # Ensure we have a mix of inversions
+    dicoms[0].PhotometricInterpretation = "MONOCHROME1"
+    dicoms[1].PhotometricInterpretation = "MONOCHROME2"
+
+    # Ensure we have a mix of TSUIDs
     tsuids = (ImplicitVRLittleEndian, ExplicitVRLittleEndian, RLELossless)
     for dcm, tsuid in zip(dicoms[: len(tsuids)], tsuids):
         set_pixels(dcm, dcm.pixel_array, tsuid)
