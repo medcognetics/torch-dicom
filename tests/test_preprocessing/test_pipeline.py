@@ -1,9 +1,11 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+import warnings
 from copy import deepcopy
 from pathlib import Path
 
 import pydicom
+import pytest
 import torch
 from dicom_utils.dicom import read_dicom_image
 
@@ -37,3 +39,21 @@ class TestPreprocessingPipeline:
                     break
             else:
                 raise AssertionError("No matching SOPInstanceUID found")
+
+    def test_pixel_vr(self, tmp_path, dicoms, dicom_iterator, file_iterator):
+        dicoms = deepcopy(dicoms)
+        pipeline = PreprocessingPipeline(file_iterator, dicom_iterator)
+        dest = Path(tmp_path, "output")
+        dest.mkdir()
+
+        output_files = pipeline(dest)
+        assert output_files
+
+        for path in output_files:
+            assert path.exists()
+            with warnings.catch_warnings(record=True) as warning_list:
+                pydicom.dcmread(path)
+
+                # Check if any warning was raised
+                if warning_list:
+                    pytest.fail(str(warning_list[0].message))
