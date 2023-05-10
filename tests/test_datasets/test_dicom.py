@@ -13,6 +13,7 @@ from dicom_utils.volume import KeepVolume, ReduceVolume
 from torch import Tensor
 from torch.utils.data import DataLoader
 
+import torch_dicom
 from torch_dicom.datasets.dicom import DUMMY_PATH, DicomInput, DicomPathDataset, DicomPathInput, collate_fn, uncollate
 
 
@@ -108,13 +109,19 @@ class TestDicomInput:
         assert out.is_floating_point()
         assert out.min() == 0 and out.max() == 1
 
+    @pytest.mark.parametrize("voi_lut", [True, False])
     @pytest.mark.parametrize("normalize", [True, False])
     @pytest.mark.parametrize("volume_handler", [ReduceVolume(), KeepVolume()])
     @pytest.mark.parametrize("img_size", [(2048, 1536), (1024, 768)])
-    def test_iter(self, dataset_input, normalize, volume_handler, img_size):
-        ds = iter(self.TEST_CLASS(dataset_input, normalize=normalize, volume_handler=volume_handler, img_size=img_size))
+    def test_iter(self, mocker, dataset_input, normalize, volume_handler, img_size, voi_lut):
+        ds = iter(
+            self.TEST_CLASS(
+                dataset_input, normalize=normalize, volume_handler=volume_handler, img_size=img_size, voi_lut=voi_lut
+            )
+        )
         expected_num_frames = 3 if isinstance(volume_handler, KeepVolume) else None
         seen = 0
+        spy = mocker.spy(torch_dicom.datasets.dicom, "read_dicom_image")  # type: ignore
         for example in ds:
             seen += 1
             expected_shape = (
@@ -131,6 +138,12 @@ class TestDicomInput:
             assert not example["dicom"].get("PixelData", None), "PixelData not removed"
             assert not example["dicom"].get("pixel_array", None), "pixel_array not removed"
         assert seen == 12
+
+        # Check kwargs forwarded to read_dicom_image
+        assert spy.call_count == seen
+        for call in spy.mock_calls:
+            assert call.kwargs["voi_lut"] == voi_lut
+            assert call.kwargs["volume_handler"] == volume_handler
 
     def test_collate(self, dataset_input):
         ds = iter(self.TEST_CLASS(dataset_input))

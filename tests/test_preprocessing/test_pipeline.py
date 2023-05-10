@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+from copy import deepcopy
 from pathlib import Path
 
 import pydicom
@@ -11,6 +12,7 @@ from torch_dicom.preprocessing.pipeline import PreprocessingPipeline
 
 class TestPreprocessingPipeline:
     def test_preprocess(self, tmp_path, dicoms, dicom_iterator, file_iterator):
+        dicoms = deepcopy(dicoms)
         pipeline = PreprocessingPipeline(file_iterator, dicom_iterator)
         dest = Path(tmp_path, "output")
         dest.mkdir()
@@ -29,8 +31,8 @@ class TestPreprocessingPipeline:
             actual_dcm = pydicom.dcmread(path)
             for expected_dcm in dicoms:
                 if expected_dcm.SOPInstanceUID == actual_dcm.SOPInstanceUID:
-                    expected = torch.from_numpy(read_dicom_image(expected_dcm))
-                    actual = torch.from_numpy(read_dicom_image(pydicom.dcmread(path)))
+                    expected = torch.from_numpy(read_dicom_image(expected_dcm, voi_lut=False))
+                    actual = torch.from_numpy(read_dicom_image(actual_dcm, voi_lut=False))
                     assert torch.allclose(expected, actual)
                     break
             else:

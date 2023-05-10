@@ -9,7 +9,7 @@ from dicom_utils.dicom_factory import CompleteMammographyStudyFactory
 
 @pytest.fixture
 def dicoms():
-    fact = CompleteMammographyStudyFactory(Rows=2048, Columns=1536, seed=42)
+    fact = CompleteMammographyStudyFactory(Rows=2048, Columns=1536, seed=42, WindowCenter=5, WindowWidth=4)
     return fact()
 
 
