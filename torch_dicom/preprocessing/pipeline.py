@@ -9,7 +9,7 @@ from typing import Any, Callable, Dict, Iterable, Iterator, Sequence, Set, cast
 
 import numpy as np
 import torch
-from dicom_utils.dicom import ALGORITHM_PRESENTATION_TYPE, Dicom, set_pixels
+from dicom_utils.dicom import Dicom, set_pixels
 from dicom_utils.volume import KeepVolume, VolumeHandler
 from pydicom.dataset import FileDataset
 from pydicom.uid import ExplicitVRLittleEndian, ImplicitVRLittleEndian
@@ -109,7 +109,6 @@ class PreprocessingPipeline:
                 assert isinstance(img, Tensor)
                 dicom = update_dicom(dicom, img)
                 dicom["PixelData"].VR = "OB"
-                dicom.PresentationIntentType = ALGORITHM_PRESENTATION_TYPE
 
                 # Propagate to dict and yield
                 example["dicom"] = dicom
@@ -159,6 +158,7 @@ class PreprocessingPipeline:
             dicoms=self.dicoms,
             normalize=False,
             voi_lut=False,
+            inversion=False,
             volume_handler=self.volume_handler,
             skip_errors=True,
         )

@@ -14,7 +14,8 @@ from torch_dicom.preprocessing.pipeline import PreprocessingPipeline
 
 class TestPreprocessingPipeline:
     @pytest.mark.parametrize("voi_lut", [False, True])
-    def test_preprocess(self, tmp_path, dicoms, dicom_iterator, file_iterator, voi_lut):
+    @pytest.mark.parametrize("inversion", [False, True])
+    def test_preprocess(self, tmp_path, dicoms, dicom_iterator, file_iterator, voi_lut, inversion):
         dicoms = deepcopy(dicoms)
         pipeline = PreprocessingPipeline(file_iterator, dicom_iterator)
         dest = Path(tmp_path, "output")
@@ -32,15 +33,10 @@ class TestPreprocessingPipeline:
         for path in output_files:
             assert path.exists()
             actual_dcm = pydicom.dcmread(path)
-
-            # The pipeline sets this tag to 'FOR ALGORITHM' but this breaks VOILUT application.
-            # For now we just remove it.
-            del actual_dcm.PresentationIntentType  # type: ignore
-
             for expected_dcm in dicoms:
                 if expected_dcm.SOPInstanceUID == actual_dcm.SOPInstanceUID:
-                    expected = torch.from_numpy(read_dicom_image(expected_dcm, voi_lut=voi_lut))
-                    actual = torch.from_numpy(read_dicom_image(actual_dcm, voi_lut=voi_lut))
+                    expected = torch.from_numpy(read_dicom_image(expected_dcm, voi_lut=voi_lut, inversion=inversion))
+                    actual = torch.from_numpy(read_dicom_image(actual_dcm, voi_lut=voi_lut, inversion=inversion))
                     assert torch.allclose(expected, actual)
                     break
             else:

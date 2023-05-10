@@ -109,14 +109,20 @@ class TestDicomInput:
         assert out.is_floating_point()
         assert out.min() == 0 and out.max() == 1
 
+    @pytest.mark.parametrize("inversion", [True, False])
     @pytest.mark.parametrize("voi_lut", [True, False])
     @pytest.mark.parametrize("normalize", [True, False])
     @pytest.mark.parametrize("volume_handler", [ReduceVolume(), KeepVolume()])
     @pytest.mark.parametrize("img_size", [(2048, 1536), (1024, 768)])
-    def test_iter(self, mocker, dataset_input, normalize, volume_handler, img_size, voi_lut):
+    def test_iter(self, mocker, dataset_input, normalize, volume_handler, img_size, voi_lut, inversion):
         ds = iter(
             self.TEST_CLASS(
-                dataset_input, normalize=normalize, volume_handler=volume_handler, img_size=img_size, voi_lut=voi_lut
+                dataset_input,
+                normalize=normalize,
+                volume_handler=volume_handler,
+                img_size=img_size,
+                voi_lut=voi_lut,
+                inversion=inversion,
             )
         )
         expected_num_frames = 3 if isinstance(volume_handler, KeepVolume) else None
@@ -144,6 +150,7 @@ class TestDicomInput:
         for call in spy.mock_calls:
             assert call.kwargs["voi_lut"] == voi_lut
             assert call.kwargs["volume_handler"] == volume_handler
+            assert call.kwargs["inversion"] == inversion
 
     def test_collate(self, dataset_input):
         ds = iter(self.TEST_CLASS(dataset_input))
@@ -234,11 +241,38 @@ class TestDicomPathDataset(TestDicomPathInput):
         ds = self.TEST_CLASS(dataset_input)
         assert len(ds) == 12
 
-    def test_getitem(self, dataset_input):
+    @pytest.mark.parametrize("inversion", [True, False])
+    @pytest.mark.parametrize("voi_lut", [True, False])
+    @pytest.mark.parametrize("volume_handler", [ReduceVolume(), KeepVolume()])
+    def test_getitem(self, mocker, dataset_input, volume_handler, voi_lut, inversion):
         dataset_input = list(dataset_input)
-        ds = self.TEST_CLASS(iter(dataset_input))
+        img_size = (2048, 1536)
+        ds = self.TEST_CLASS(
+            iter(dataset_input),
+            img_size=img_size,
+            voi_lut=voi_lut,
+            volume_handler=volume_handler,
+            inversion=inversion,
+        )
+        spy = mocker.spy(torch_dicom.datasets.dicom, "read_dicom_image")  # type: ignore
         example = ds[0]
-        assert example["img"].shape == (1, 2048, 1536) and example["img"].dtype == torch.float
+
+        expected_num_frames = 3 if isinstance(volume_handler, KeepVolume) else None
+        expected_shape = (
+            (1, expected_num_frames, 2048, 1536)
+            if isinstance(volume_handler, KeepVolume) and not example["record"].is_2d
+            else (1, *img_size)
+        )
+
+        assert example["img"].shape == expected_shape
+        assert example["img"].dtype == torch.float
         assert isinstance(example["img_size"], Tensor) and example["img_size"].shape == (2,)
         assert isinstance(example["record"], MammogramFileRecord)
         assert example["record"].path == dataset_input[0]
+
+        # Check kwargs forwarded to read_dicom_image
+        assert spy.call_count == 1
+        for call in spy.mock_calls:
+            assert call.kwargs["voi_lut"] == voi_lut
+            assert call.kwargs["volume_handler"] == volume_handler
+            assert call.kwargs["inversion"] == inversion
