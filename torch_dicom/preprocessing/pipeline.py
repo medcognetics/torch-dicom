@@ -160,6 +160,7 @@ class PreprocessingPipeline:
             normalize=False,
             voi_lut=False,
             volume_handler=self.volume_handler,
+            skip_errors=True,
         )
         return DataLoader(
             ds,
