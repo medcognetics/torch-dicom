@@ -2,6 +2,8 @@
 # -*- coding: utf-8 -*-
 from copy import deepcopy
 from dataclasses import dataclass
+from multiprocessing import Manager
+from multiprocessing.managers import ListProxy
 from typing import ClassVar
 
 import pytest
@@ -276,3 +278,15 @@ class TestDicomPathDataset(TestDicomPathInput):
             assert call.kwargs["voi_lut"] == voi_lut
             assert call.kwargs["volume_handler"] == volume_handler
             assert call.kwargs["inversion"] == inversion
+
+    @pytest.fixture
+    def manager(self):
+        with Manager() as manager:
+            yield manager
+
+    def test_manager(self, manager, dataset_input):
+        ds = self.TEST_CLASS(dataset_input, manager=manager)
+        assert isinstance(ds.files, ListProxy)
+        dl = DataLoader(ds, batch_size=2, num_workers=4, collate_fn=collate_fn)
+        batches = list(dl)
+        assert len(batches)

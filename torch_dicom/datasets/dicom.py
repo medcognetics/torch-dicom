@@ -5,6 +5,7 @@ import warnings
 from copy import copy, deepcopy
 from dataclasses import is_dataclass, replace
 from itertools import islice
+from multiprocessing.managers import SyncManager
 from pathlib import Path
 from typing import (
     Any,
@@ -446,6 +447,7 @@ class DicomPathDataset(PathDataset):
         normalize: If True, the image is normalized to [0, 1].
         voi_lut: If True, the VOI LUT is applied to the image.
         inversion: If True, apply PhotometricInterpretation inversion.
+        manager: Optional multiprocessing manager to be used for sharing data between processes.
 
     Shapes:
         - ``'img'``: :math:`(C, H, W)` for 2D images, :math:`(C, D, H, W)` for 3D volumes.
@@ -460,8 +462,9 @@ class DicomPathDataset(PathDataset):
         normalize: bool = True,
         voi_lut: bool = True,
         inversion: bool = True,
+        manager: Optional[SyncManager] = None,
     ):
-        super().__init__(paths)
+        super().__init__(paths, manager=manager)
         self.img_size = img_size
         self.transform = transform
         self.volume_handler = volume_handler

@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import logging
+from multiprocessing.managers import SyncManager
 from pathlib import Path
 from typing import Callable, Iterable, Iterator, Optional, Tuple, TypedDict, cast
 
@@ -161,6 +162,7 @@ class TensorPathDataset(PathDataset):
         img_size: Size of the image to be returned. If None, the original image size is returned.
         transform: Optional transform to be applied to the image.
         skip_errors: If True, errors are ignored and the next Tensor is loaded. If False, the error is raised.
+        manager: Optional multiprocessing manager to be used for sharing data between processes.
     """
 
     def __init__(
@@ -168,8 +170,9 @@ class TensorPathDataset(PathDataset):
         paths: Iterator[Path],
         img_size: Optional[Tuple[int, int]] = None,
         transform: Optional[Callable] = None,
+        manager: Optional[SyncManager] = None,
     ):
-        super().__init__(paths)
+        super().__init__(paths, manager=manager)
         self.img_size = img_size
         self.transform = transform
 
