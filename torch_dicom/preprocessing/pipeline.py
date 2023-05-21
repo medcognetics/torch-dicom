@@ -46,7 +46,8 @@ def update_dicom(dicom: Dicom, img: Tensor) -> Dicom:
     # Set TransferSyntaxUID to ExplicitVRLittleEndian if compressed.
     # This matches what dicom_utils does when decompressing.
     new_syntax = ImplicitVRLittleEndian if dicom.is_implicit_VR else ExplicitVRLittleEndian
-    dicom = set_pixels(cast(FileDataset, dicom), img.cpu().numpy().astype(np.uint16), syntax=new_syntax)
+    dtype = np.uint16 if dicom.BitsAllocated == 16 else np.uint8
+    dicom = set_pixels(cast(FileDataset, dicom), img.cpu().numpy().astype(dtype), syntax=new_syntax)
 
     # Disabled for performance
     # assert (dicom.pixel_array == img.cpu().numpy().astype(np.uint16)).all()
