@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, Optional, Tuple, Union, cast
 
 import torch
+import torch.nn.functional as F
 from einops import rearrange
 from torch import Tensor
 
@@ -32,6 +33,7 @@ class Resize:
         size: Size to resize the image to.
 
         mode: Interpolation mode to use. See :func:`torch.nn.functional.interpolate` for more details.
+            Can also be ``"max"`` to use maximum pooling instead of interpolation.
 
         align_corners: See :func:`torch.nn.functional.interpolate` for more details.
 
@@ -86,6 +88,7 @@ class Resize:
             preserve_aspect_ratio=self.preserve_aspect_ratio,
             smart_pad=self.smart_pad,
             fill_value=self.fill,
+            mode=self.mode,
         )
 
         # Update metadata
@@ -101,6 +104,7 @@ class Resize:
         preserve_aspect_ratio: bool = True,
         smart_pad: bool = True,
         fill_value: Union[int, float] = 0,
+        mode: str = "bilinear",
     ) -> Dict[str, Any]:
         r"""Resizes the given image to the given size.
 
@@ -141,12 +145,16 @@ class Resize:
         result_dict["resized_w"] = W_new
 
         # Resize image, converting to float32 if necessary
-        x = torch.nn.functional.interpolate(
-            x.float().unsqueeze_(1),
-            size=(H_new, W_new),
-            mode="bilinear",
-            align_corners=None,
-        )
+        x = x.float().unsqueeze_(1)
+        if mode == "max":
+            x = F.adaptive_max_pool2d(x, (H_new, W_new))
+        else:
+            x = F.interpolate(
+                x,
+                size=(H_new, W_new),
+                mode=mode,
+                align_corners=None,
+            )
 
         # Pad image
         if preserve_aspect_ratio and (H_new != H_target or W_new != W_target):
