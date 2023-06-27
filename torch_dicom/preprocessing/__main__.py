@@ -46,6 +46,7 @@ def parse_args() -> Namespace:
     parser.add_argument("-p", "--prefetch-factor", type=int, default=4, help="Prefetch factor for dataloader")
     parser.add_argument("-s", "--size", nargs=2, type=int, default=None, help="Output image size")
     parser.add_argument("-v", "--volume-handler", default="keep", help="Volume handler")
+    parser.add_argument("-m", "--resize-mode", default="bilinear", help="Resize mode")
     return parser.parse_args()
 
 
@@ -54,7 +55,7 @@ def main(args: Namespace):
     if args.size:
         H, W = tuple(args.size)
         crop = MinMaxCrop()
-        resize = Resize(size=(H, W))
+        resize = Resize(size=(H, W), mode=args.resize_mode)
         transforms = [
             crop,
             resize,
