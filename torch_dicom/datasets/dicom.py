@@ -35,6 +35,7 @@ from torch import Tensor
 from torch.utils.data import IterableDataset, default_collate, get_worker_info
 from torch.utils.data._utils.collate import collate, default_collate_fn_map
 
+from .helpers import normalize_pixels
 from .path import PathDataset, PathInput
 
 
@@ -296,14 +297,7 @@ class DicomInput(IterableDataset):
             read_dicom_image(dcm, volume_handler=volume_handler, voi_lut=voi_lut, inversion=inversion).astype(np.int32)
         )
         if normalize:
-            pixels = cls.normalize_pixels(pixels)
-        return pixels
-
-    @classmethod
-    def normalize_pixels(cls, pixels: Tensor, eps: float = 1e-6) -> Tensor:
-        pmin, pmax = pixels.aminmax()
-        delta = (pmax - pmin).clip(min=eps)
-        pixels = (pixels.float() - pmin).div_(delta)
+            pixels = normalize_pixels(pixels)
         return pixels
 
     @classmethod
