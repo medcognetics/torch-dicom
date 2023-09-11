@@ -6,7 +6,7 @@ groups = ["default", "j2k", "quality", "test"]
 cross_platform = true
 static_urls = false
 lock_version = "4.3"
-content_hash = "sha256:54fe4af05f372b7815d37038f3f214e358553f789ed938ba7a40ef8794c4f7d5"
+content_hash = "sha256:6f3a25fbaad7b595525b8535d55bf5f75a61f5e897623b47a2d4ac6231a5a0f0"
 
 [[package]]
 name = "autoflake"
@@ -1169,17 +1169,6 @@ files = [
     {file = "pylibjpeg_openjpeg-1.3.2-cp39-cp39-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_12_x86_64.manylinux2010_x86_64.whl", hash = "sha256:d77575fa1139859f809de01dffb15bb16a3a5bec687d469c2c8aca80546b5de5"},
     {file = "pylibjpeg_openjpeg-1.3.2-cp39-cp39-win32.whl", hash = "sha256:5d3714af3f413542732f630fbecc31647d573a8b87fb6d67f320e37b16aa48d9"},
     {file = "pylibjpeg_openjpeg-1.3.2-cp39-cp39-win_amd64.whl", hash = "sha256:61bc24695248a76222026dcfd7aa15527fae97aec43a38eb48a88f9afe612880"},
-]
-
-[[package]]
-name = "pynvjpeg2k"
-version = "0.1.dev15+g0265af0"
-requires_python = ">=3.8"
-git = "ssh://git@github.com/medcognetics/pynvjpeg2k.git"
-revision = "0265af0d889f9bef9b9a6c587a55c7cf8e4f1248"
-summary = ""
-dependencies = [
-    "numpy",
 ]
 
 [[package]]

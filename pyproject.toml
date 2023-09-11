@@ -21,7 +21,6 @@ dynamic = ["version"]
 
 [project.optional-dependencies]
 j2k = [
-  "pynvjpeg2k @ git+ssh://git@github.com/medcognetics/pynvjpeg2k.git",
 ]
 
 [tool.autoflake]
@@ -47,8 +46,6 @@ line_length = 119
 lines_after_imports = 2
 multi_line_output = 3
 use_parentheses = false
-
-[tool.pyright]
 
 [tool.pdm]
 version = { source = "scm" }
