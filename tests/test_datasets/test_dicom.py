@@ -103,12 +103,6 @@ class TestDicomInput:
         img = self.TEST_CLASS.load_pixels(dcm)
         assert img.shape == (1, H, W)
 
-    def test_normalize_pixels(self):
-        pixels = torch.randint(0, 2**10, (1, 2048, 1536), dtype=torch.long)
-        out = self.TEST_CLASS.normalize_pixels(pixels)
-        assert out.is_floating_point()
-        assert out.min() == 0 and out.max() == 1
-
     @pytest.mark.parametrize("inversion", [True, False])
     @pytest.mark.parametrize("voi_lut", [True, False])
     @pytest.mark.parametrize("normalize", [True, False])
@@ -231,10 +225,6 @@ class TestDicomPathDataset(TestDicomPathInput):
 
     @pytest.mark.skip(reason="Not implemented")
     def test_load_pixels(self):
-        pass
-
-    @pytest.mark.skip(reason="Not implemented")
-    def test_normalize_pixels(self):
         pass
 
     def test_len(self, dataset_input):

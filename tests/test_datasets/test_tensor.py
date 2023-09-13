@@ -20,13 +20,16 @@ class TestTensorInput:
     def dataset_input(self, tensor_input):
         return tensor_input
 
-    def test_iter(self, dataset_input):
-        ds = iter(self.TEST_CLASS(dataset_input))
+    @pytest.mark.parametrize("normalize", [True, False])
+    def test_iter(self, dataset_input, normalize):
+        ds = iter(self.TEST_CLASS(dataset_input, normalize=normalize))
         seen = 0
         for example in ds:
             seen += 1
             assert example["img"].shape == (1, 2048, 1536) and example["img"].dtype == torch.float
             assert isinstance(example["img_size"], Tensor) and example["img_size"].shape == (2,)
+            if normalize:
+                assert example["img"].min() == 0 and example["img"].max() == 1
         assert seen == 12
 
     def test_collate(self, dataset_input):
@@ -57,15 +60,18 @@ class TestTensorPathInput(TestTensorInput):
     def dataset_input(self, tensor_files):
         return tensor_files
 
-    def test_iter(self, dataset_input):
+    @pytest.mark.parametrize("normalize", [True, False])
+    def test_iter(self, dataset_input, normalize):
         dataset_input = list(dataset_input)
-        ds = iter(self.TEST_CLASS(dataset_input))
+        ds = iter(self.TEST_CLASS(dataset_input, normalize=normalize))
         seen = 0
         for i, example in enumerate(ds):
             seen += 1
             assert example["img"].shape == (1, 2048, 1536) and example["img"].dtype == torch.float
             assert isinstance(example["img_size"], Tensor) and example["img_size"].shape == (2,)
             assert example["path"] == dataset_input[i]
+            if normalize:
+                assert example["img"].min() == 0 and example["img"].max() == 1
         assert seen == 12
 
     def test_collate(self, dataset_input):
@@ -86,13 +92,16 @@ class TestTensorPathDataset(TestTensorPathInput):
         ds = self.TEST_CLASS(dataset_input)
         assert len(ds) == 12
 
-    def test_getitem(self, dataset_input):
+    @pytest.mark.parametrize("normalize", [True, False])
+    def test_getitem(self, dataset_input, normalize):
         dataset_input = list(dataset_input)
-        ds = self.TEST_CLASS(iter(dataset_input))
+        ds = self.TEST_CLASS(iter(dataset_input), normalize=normalize)
         example = ds[0]
         assert example["img"].shape == (1, 2048, 1536) and example["img"].dtype == torch.float
         assert isinstance(example["img_size"], Tensor) and example["img_size"].shape == (2,)
         assert example["path"] == dataset_input[0]
+        if normalize:
+            assert example["img"].min() == 0 and example["img"].max() == 1
 
 
 @pytest.mark.parametrize("broadcast_tensors", [True, pytest.param(False, marks=pytest.mark.xfail(strict=True))])
