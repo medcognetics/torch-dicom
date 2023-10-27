@@ -15,7 +15,8 @@ from torch_dicom.preprocessing.pipeline import PreprocessingPipeline
 class TestPreprocessingPipeline:
     @pytest.mark.parametrize("voi_lut", [False, True])
     @pytest.mark.parametrize("inversion", [False, True])
-    def test_preprocess(self, tmp_path, dicoms, dicom_iterator, file_iterator, voi_lut, inversion):
+    @pytest.mark.parametrize("rescale", [False, True])
+    def test_preprocess(self, tmp_path, dicoms, dicom_iterator, file_iterator, voi_lut, inversion, rescale):
         dicoms = deepcopy(dicoms)
         pipeline = PreprocessingPipeline(file_iterator, dicom_iterator)
         dest = Path(tmp_path, "output")
@@ -35,8 +36,12 @@ class TestPreprocessingPipeline:
             actual_dcm = pydicom.dcmread(path)
             for expected_dcm in dicoms:
                 if expected_dcm.SOPInstanceUID == actual_dcm.SOPInstanceUID:
-                    expected = torch.from_numpy(read_dicom_image(expected_dcm, voi_lut=voi_lut, inversion=inversion))
-                    actual = torch.from_numpy(read_dicom_image(actual_dcm, voi_lut=voi_lut, inversion=inversion))
+                    expected = torch.from_numpy(
+                        read_dicom_image(expected_dcm, voi_lut=voi_lut, inversion=inversion, rescale=rescale)
+                    )
+                    actual = torch.from_numpy(
+                        read_dicom_image(actual_dcm, voi_lut=voi_lut, inversion=inversion, rescale=rescale)
+                    )
                     assert torch.allclose(expected, actual)
                     break
             else:

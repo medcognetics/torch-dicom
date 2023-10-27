@@ -105,10 +105,11 @@ class TestDicomInput:
 
     @pytest.mark.parametrize("inversion", [True, False])
     @pytest.mark.parametrize("voi_lut", [True, False])
+    @pytest.mark.parametrize("rescale", [True, False])
     @pytest.mark.parametrize("normalize", [True, False])
     @pytest.mark.parametrize("volume_handler", [ReduceVolume(), KeepVolume()])
     @pytest.mark.parametrize("img_size", [(2048, 1536), (1024, 768)])
-    def test_iter(self, mocker, dataset_input, normalize, volume_handler, img_size, voi_lut, inversion):
+    def test_iter(self, mocker, dataset_input, normalize, volume_handler, img_size, voi_lut, inversion, rescale):
         ds = iter(
             self.TEST_CLASS(
                 dataset_input,
@@ -117,6 +118,7 @@ class TestDicomInput:
                 img_size=img_size,
                 voi_lut=voi_lut,
                 inversion=inversion,
+                rescale=rescale,
             )
         )
         expected_num_frames = 3 if isinstance(volume_handler, KeepVolume) else None
@@ -145,6 +147,7 @@ class TestDicomInput:
             assert call.kwargs["voi_lut"] == voi_lut
             assert call.kwargs["volume_handler"] == volume_handler
             assert call.kwargs["inversion"] == inversion
+            assert call.kwargs["rescale"] == rescale
 
     def test_collate(self, dataset_input):
         ds = iter(self.TEST_CLASS(dataset_input))

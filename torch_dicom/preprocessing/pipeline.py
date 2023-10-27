@@ -160,6 +160,7 @@ class PreprocessingPipeline:
             normalize=False,
             voi_lut=False,
             inversion=False,
+            rescale=False,
             volume_handler=self.volume_handler,
             skip_errors=True,
         )
