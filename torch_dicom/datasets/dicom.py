@@ -372,10 +372,7 @@ class DicomInput(IterableDataset):
 
         # Wrap image as a TV tensor - Image for 2D, Video for 3D
         assert 3 <= pixels.ndim <= 4, f"Expected 3 or 4 dims, got {pixels.ndim}"
-        if pixels.ndim == 3:
-            pixels = Image(pixels)
-        else:
-            pixels = Video(pixels)
+        pixels = (Image if pixels.ndim == 3 else Video)(pixels)
 
         creator = RecordCreator()
         rec = creator(DUMMY_PATH, dcm)
