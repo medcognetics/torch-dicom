@@ -12,6 +12,8 @@ from dicom_utils.dicom_factory import DicomFactory
 from dicom_utils.volume import KeepVolume, ReduceVolume
 from torch import Tensor
 from torch.utils.data import DataLoader
+from torchvision.transforms.v2 import ColorJitter
+from torchvision.tv_tensors import Image, Video
 
 import torch_dicom
 from torch_dicom.datasets.dicom import DUMMY_PATH, DicomInput, DicomPathDataset, DicomPathInput, collate_fn, uncollate
@@ -109,7 +111,10 @@ class TestDicomInput:
     @pytest.mark.parametrize("normalize", [True, False])
     @pytest.mark.parametrize("volume_handler", [ReduceVolume(), KeepVolume()])
     @pytest.mark.parametrize("img_size", [(2048, 1536), (1024, 768)])
-    def test_iter(self, mocker, dataset_input, normalize, volume_handler, img_size, voi_lut, inversion, rescale):
+    @pytest.mark.parametrize("transform", [None, ColorJitter(brightness=0.1)])
+    def test_iter(
+        self, mocker, dataset_input, normalize, volume_handler, img_size, voi_lut, inversion, rescale, transform
+    ):
         ds = iter(
             self.TEST_CLASS(
                 dataset_input,
@@ -119,6 +124,7 @@ class TestDicomInput:
                 voi_lut=voi_lut,
                 inversion=inversion,
                 rescale=rescale,
+                transform=transform,
             )
         )
         expected_num_frames = 3 if isinstance(volume_handler, KeepVolume) else None
@@ -126,11 +132,9 @@ class TestDicomInput:
         spy = mocker.spy(torch_dicom.datasets.dicom, "read_dicom_image")  # type: ignore
         for example in ds:
             seen += 1
-            expected_shape = (
-                (1, expected_num_frames, *img_size)
-                if isinstance(volume_handler, KeepVolume) and not example["record"].is_2d
-                else (1, *img_size)
-            )
+            expecting_3d = isinstance(volume_handler, KeepVolume) and not example["record"].is_2d
+            expected_shape = (1, expected_num_frames, *img_size) if expecting_3d else (1, *img_size)
+            assert isinstance(example["img"], Video if expecting_3d else Image)
             assert example["img"].shape == expected_shape
             assert example["img"].dtype == (torch.float if normalize else torch.int32)
             assert isinstance(example["img_size"], Tensor) and example["img_size"].shape == (2,)
@@ -184,6 +188,19 @@ class TestDicomInput:
                 sop_uids.add(rec.SOPInstanceUID)
         assert len(sop_uids) == 12
 
+    @pytest.mark.parametrize("volume_handler", [ReduceVolume(), KeepVolume()])
+    def test_transform(self, dataset_input, volume_handler, mocker):
+        dataset_input = list(dataset_input)
+        transform = ColorJitter(brightness=0.1)
+        spy = mocker.spy(transform, "forward")
+        ds1 = self.TEST_CLASS(iter(dataset_input), volume_handler=volume_handler)
+        ds2 = self.TEST_CLASS(iter(dataset_input), volume_handler=volume_handler, transform=transform)
+        example1 = next(iter(ds1))
+        example2 = next(iter(ds2))
+        spy.assert_called_once()
+        assert (example1["img"] != example2["img"]).any()
+        assert example1["img_size"].shape == example2["img_size"].shape
+
 
 class TestDicomPathInput(TestDicomInput):
     TEST_CLASS: ClassVar = DicomPathInput
@@ -199,6 +216,7 @@ class TestDicomPathInput(TestDicomInput):
         seen = 0
         for i, example in enumerate(ds):
             seen += 1
+            assert isinstance(example["img"], Image)
             assert example["img"].shape == (1, 2048, 1536)
             assert example["img"].dtype == (torch.float if normalize else torch.int32)
             assert isinstance(example["img_size"], Tensor) and example["img_size"].shape == (2,)
@@ -251,12 +269,10 @@ class TestDicomPathDataset(TestDicomPathInput):
         example = ds[0]
 
         expected_num_frames = 3 if isinstance(volume_handler, KeepVolume) else None
-        expected_shape = (
-            (1, expected_num_frames, 2048, 1536)
-            if isinstance(volume_handler, KeepVolume) and not example["record"].is_2d
-            else (1, *img_size)
-        )
+        expecting_3d = isinstance(volume_handler, KeepVolume) and not example["record"].is_2d
+        expected_shape = (1, expected_num_frames, 2048, 1536) if expecting_3d else (1, *img_size)
 
+        assert isinstance(example["img"], Video if expecting_3d else Image)
         assert example["img"].shape == expected_shape
         assert example["img"].dtype == torch.float
         assert isinstance(example["img_size"], Tensor) and example["img_size"].shape == (2,)

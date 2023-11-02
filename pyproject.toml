@@ -10,10 +10,11 @@ authors = [
     {name = "Scott Chase Waggener", email = "tidalpaladin@protonmail.com"},
 ]
 dependencies = [
-  "einops",
-  "torch>=1.11.0",
-  "pandas",
-  "dicom-utils @ git+https://github.com/medcognetics/dicom-utils.git",
+    "einops",
+    "torch>=1.11.0",
+    "pandas",
+    "dicom-utils @ git+https://github.com/medcognetics/dicom-utils.git",
+    "torchvision>=0.16.0",
 ]
 readme = "README.md"
 license = {text = "Apache"}
@@ -47,8 +48,6 @@ line_length = 119
 lines_after_imports = 2
 multi_line_output = 3
 use_parentheses = false
-
-[tool.pyright]
 
 [tool.pdm]
 version = { source = "scm" }

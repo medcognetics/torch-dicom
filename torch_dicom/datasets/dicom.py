@@ -34,6 +34,7 @@ from dicom_utils.volume import ReduceVolume, VolumeHandler
 from torch import Tensor
 from torch.utils.data import IterableDataset, default_collate, get_worker_info
 from torch.utils.data._utils.collate import collate, default_collate_fn_map
+from torchvision.tv_tensors import Image, Video
 
 from .helpers import normalize_pixels
 from .path import PathDataset, PathInput
@@ -328,6 +329,8 @@ class DicomInput(IterableDataset):
         rescale: bool = True,
     ) -> DicomExample:
         r"""Loads an example, but does not perform any transforms.
+        The pixel data in the output will be casted to a torchvision ``Image`` or ``Video``
+        depending on if the input is 2D or 3D.
 
         Args:
             dcm: DICOM object.
@@ -367,6 +370,10 @@ class DicomInput(IterableDataset):
                 pixels = pixels if is_volume else pixels.squeeze_(0)
                 pixels = pixels.to(dtype=pixel_type)
 
+        # Wrap image as a TV tensor - Image for 2D, Video for 3D
+        assert 3 <= pixels.ndim <= 4, f"Expected 3 or 4 dims, got {pixels.ndim}"
+        pixels = (Image if pixels.ndim == 3 else Video)(pixels)
+
         creator = RecordCreator()
         rec = creator(DUMMY_PATH, dcm)
 
@@ -391,6 +398,8 @@ class DicomInput(IterableDataset):
 
 class DicomPathInput(DicomInput, PathInput):
     r"""Dataset that iterates over paths to DICOM files and yields a metadata dictionary.
+    The pixel data in the output will be casted to a torchvision ``Image`` or ``Video``
+    depending on if the input is 2D or 3D.
 
     Args:
         paths: Iterable of paths to DICOM files.
@@ -453,6 +462,8 @@ class DicomPathDataset(PathDataset):
     r"""Dataset that reads DICOM files and returns a metadata dictionary. This dataset class scans over all input
     paths during instantiation. This takes time, but allows a dataset length to be determined.
     If you want to avoid this, use :class:`DicomPathInput` instead. This class is best suited for training.
+    The pixel data in the output will be casted to a torchvision ``Image`` or ``Video``
+    depending on if the input is 2D or 3D.
 
     Args:
         paths: Iterable of paths to DICOM files.
