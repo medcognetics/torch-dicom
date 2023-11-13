@@ -3,9 +3,13 @@
 
 import warnings
 from dataclasses import dataclass
+from functools import cached_property
+from pathlib import Path
 from typing import Any, Dict, Optional, Tuple, TypeVar, Union, cast, overload
 
+import pandas as pd
 import torch
+from dicom_utils.container import SOPUID, DicomImageFileRecord
 from einops import reduce, repeat
 from torch import Tensor
 
@@ -13,6 +17,7 @@ from ..datasets import DicomExample, TensorExample
 
 
 E = TypeVar("E", bound=Union[DicomExample, TensorExample, Dict[str, Any]])
+DE = TypeVar("DE", bound=DicomExample)
 
 
 @overload
@@ -74,7 +79,7 @@ def _validate_coords(
 
 @dataclass
 class Crop:
-    r"""Performs cropping of an image. 
+    r"""Performs cropping of an image.
 
     Args:
         img_key: Key for the image in the example dict.
@@ -280,4 +285,128 @@ class MinMaxCrop(Crop):
                 bounds[..., 3].scatter_reduce_(0, nonzero_b, nonzero_h, reduce="amax", include_self=False).add_(1)
 
         assert bounds.shape == (N, 4), f"Expected bounds to have shape (B, 4), got {bounds.shape}"
+        return bounds
+
+
+@dataclass(kw_only=True)
+class ROICrop(Crop):
+    r"""Crops an image according to ROI coordinates from a CSV file.
+
+    The CSV file should have at least the following columns:
+        SOPInstanceUID,x1,y1,x2,y2
+
+    If multiple ROIs are present for a given image, a random ROI will be selected.
+
+    Args:
+        path:  Path to CSV file with ROIs
+
+        img_key: Key for the image in the example dict.
+
+        bounds_key: Key for the crop bounds in the example dict. The determined
+            crop bounds will be stored in this location.
+
+        img_dest_key: Key for the cropped image in the example dict. If None,
+            the cropped image will be stored in the same location as the original image.
+
+        min_size: Minimum size of the crop in the format (H, W). If the ROI is smaller than this,
+            the crop will be expanded to this size.
+
+    Shape:
+        - Input: :math:`(C, H, W)`
+        - Output: :math:`(C, H', W')`
+    """
+    path: Path
+    min_size: Tuple[int, int] = (256, 256)
+
+    def __post_init__(self):
+        super().__post_init__()
+        # Trigger cached property
+        assert isinstance(self.df, pd.DataFrame)
+
+    @cached_property
+    def df(self) -> pd.DataFrame:
+        return pd.read_csv(self.path, index_col="SOPInstanceUID")
+
+    def __call__(self, example: DE) -> DE:
+        """
+        Applies the MinMaxCrop operation to the given example.
+
+        Args:
+            example: The example to be processed.
+
+        Returns:
+            The processed example.
+        """
+        is_dicom_example = (
+            "img" in example
+            and isinstance(example["img"], Tensor)
+            and "record" in example
+            and isinstance(example["record"], DicomImageFileRecord)
+        )
+        if not is_dicom_example:
+            raise TypeError(
+                f"Expected example to be a DicomExample, got {example.keys() if isinstance(example, dict) else type(example)}"
+            )
+
+        img = example[self.img_key]
+        sopuid = example["record"].SOPInstanceUID
+
+        if sopuid is not None:
+            bounds = self.get_bounds(img, sopuid)
+            example = super().__call__(example, bounds)
+
+        return example
+
+    @torch.no_grad()
+    def get_bounds(self, x: Tensor, sopuid: SOPUID) -> Tensor:
+        r"""Returns the crop bounds for the given image.
+
+        Args:
+            x: Image tensor.
+            sopuid: SOPInstanceUID of the image.
+
+        Shape:
+            - Input: :math:`(*, H, W)`
+            - Output: :math:`(4,)`
+
+        Returns:
+            Absolute crop bounds in the format :math:`(x_1, y_1, x_2, y_2)`.
+        """
+        # Validate / process shape
+        if x.ndim != 3:
+            raise ValueError(f"Expected input to have at exactly 3 dimensions, got {x.ndim}")
+
+        H, W = x.shape[-2:]
+
+        if sopuid not in self.df.index:
+            # Select a random crop of size `self.min_size` anywhere in the image
+            h_start = torch.randint(0, H - self.min_size[0] + 1, (1,))
+            w_start = torch.randint(0, W - self.min_size[1] + 1, (1,))
+            h_end = h_start + self.min_size[0]
+            w_end = w_start + self.min_size[1]
+
+            assert h_end <= H
+            assert w_end <= W
+            # In xyxy format
+            bounds = torch.tensor([w_start, h_start, w_end, h_end])
+
+        else:
+            # Get matches for sopuid in self.df
+            matches = self.df.loc[sopuid]
+            # If there are multiple matches, choose one ROI at random
+            if isinstance(matches, pd.DataFrame) and len(matches) > 1:
+                match = matches.sample(n=1)
+                x1, y1, x2, y2 = match.values[0]
+            else:
+                match = matches
+                x1, y1, x2, y2 = match.values
+            # If the ROI is smaller than self.min_size, expand the bounds
+            if (x2 - x1) < self.min_size[0] or (y2 - y1) < self.min_size[1]:
+                x1 = max(0, x1 - (self.min_size[0] - (x2 - x1)) // 2)
+                y1 = max(0, y1 - (self.min_size[1] - (y2 - y1)) // 2)
+                x2 = min(W, x1 + self.min_size[0])
+                y2 = min(H, y1 + self.min_size[1])
+            # In xyxy format
+            bounds = torch.tensor([x1, y1, x2, y2])
+
         return bounds
