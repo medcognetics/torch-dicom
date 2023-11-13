@@ -11,7 +11,7 @@ from dicom_utils.dicom import nvjpeg2k_is_available
 from dicom_utils.volume import KeepVolume, ReduceVolume, SliceAtLocation, VolumeHandler
 from registry import Registry
 
-from .crop import MinMaxCrop
+from .crop import MinMaxCrop, ROICrop
 from .pipeline import PreprocessingPipeline
 from .resize import Resize
 
@@ -47,6 +47,7 @@ def parse_args() -> Namespace:
     parser.add_argument("-s", "--size", nargs=2, type=int, default=None, help="Output image size")
     parser.add_argument("-v", "--volume-handler", default="keep", help="Volume handler")
     parser.add_argument("-m", "--resize-mode", default="bilinear", help="Resize mode")
+    parser.add_argument("-r", "--roi-crop", type=Path, default=None, help="Path to ROI crop file for ROICrop")
     return parser.parse_args()
 
 
@@ -54,7 +55,7 @@ def main(args: Namespace):
     # Build transform list
     if args.size:
         H, W = tuple(args.size)
-        crop = MinMaxCrop()
+        crop = ROICrop(path=args.roi_crop, min_size=args.size) if args.roi_crop else MinMaxCrop()
         resize = Resize(size=(H, W), mode=args.resize_mode)
         transforms = [
             crop,

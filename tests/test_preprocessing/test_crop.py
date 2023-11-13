@@ -104,23 +104,9 @@ class TestMinMaxCrop:
 
 
 class TestROICrop:
-    @pytest.fixture(scope="class")
-    def csv(self, tmp_path_factory):
-        csv_path = tmp_path_factory.mktemp("data") / "roi.csv"
-        data = {
-            "SOPInstanceUID": ["1.2.3", "1.2.3", "4.5.6"],
-            "x1": [0, 0, 10],
-            "y1": [0, 0, 10],
-            "x2": [5, 10, 15],
-            "y2": [5, 10, 15],
-        }
-        df = pd.DataFrame(data)
-        df.to_csv(csv_path, index=False)
-        return csv_path
-
     @pytest.fixture
-    def crop(self, csv, min_size):
-        return ROICrop(path=csv, min_size=min_size)
+    def crop(self, roi_crop_csv, min_size):
+        return ROICrop(path=roi_crop_csv, min_size=min_size)
 
     @pytest.fixture(params=[torch.float32, torch.int32])
     def inp(self, mocker, request, height, width, sopuid):
