@@ -5,7 +5,7 @@ import warnings
 from dataclasses import dataclass
 from functools import cached_property
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple, TypeVar, Union, cast, overload
+from typing import Any, Dict, Final, Optional, Tuple, TypeVar, Union, cast, overload
 
 import pandas as pd
 import torch
@@ -18,6 +18,7 @@ from ..datasets import DicomExample, TensorExample
 
 E = TypeVar("E", bound=Union[DicomExample, TensorExample, Dict[str, Any]])
 DE = TypeVar("DE", bound=DicomExample)
+COORDS_PER_BOX: Final = 4
 
 
 @overload
@@ -115,7 +116,7 @@ class Crop:
         """
         if not isinstance(example, dict):
             raise TypeError(f"Expected example to be a dict, got {type(example)}")
-        if not xyxy_coords.numel() == 4:
+        if not xyxy_coords.numel() == COORDS_PER_BOX:
             raise ValueError(f"Expected xyxy_coords to have exactly 4 elements, got {xyxy_coords.shape}")
 
         # Crop image
