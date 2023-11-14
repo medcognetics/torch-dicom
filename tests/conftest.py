@@ -95,9 +95,12 @@ def image_input(images):
     return iter(images)
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def image_files(tmpdir_factory, images):
     tmp_path = tmpdir_factory.mktemp("img_data")
-    paths = [Path(tmp_path / f"image_{i}.png") for i, img in enumerate(images)]
-    [img.save(path) for img, path in zip(images, paths)]
-    return paths
+    paths = []
+    for i, img in enumerate(images):
+        path = Path(tmp_path, f"image_{i}.png")
+        img.save(path)
+        paths.append(path)
+    return iter(paths)
