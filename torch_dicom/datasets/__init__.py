@@ -3,6 +3,7 @@
 
 from .chain import AggregateDataset, AggregateInput
 from .dicom import DUMMY_PATH, DicomExample, DicomInput, DicomPathDataset, DicomPathInput, collate_fn, uncollate
+from .image import ImageInput, ImagePathDataset, ImagePathInput
 from .path import PathDataset, PathInput
 from .tensor import TensorExample, TensorInput, TensorPathDataset, TensorPathInput
 
@@ -23,4 +24,7 @@ __all__ = [
     "collate_fn",
     "TensorExample",
     "uncollate",
+    "ImageInput",
+    "ImagePathDataset",
+    "ImagePathInput",
 ]

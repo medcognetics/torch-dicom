@@ -2,11 +2,13 @@
 # -*- coding: utf-8 -*-
 from pathlib import Path
 
+import numpy as np
 import pytest
 import torch
 from dicom_utils.dicom import set_pixels
 from dicom_utils.dicom_factory import CompleteMammographyStudyFactory
 from dicom_utils.tags import Tag
+from PIL import Image
 from pydicom.uid import ExplicitVRLittleEndian, ImplicitVRLittleEndian, RLELossless
 
 
@@ -81,3 +83,21 @@ def tensor_files(tmp_path, tensors):
         torch.save(t, path)
         paths.append(path)
     return iter(paths)
+
+
+@pytest.fixture(scope="session")
+def images(tensors):
+    return [Image.fromarray((t * np.iinfo(np.uint16).max).squeeze().numpy().astype(np.uint16)) for t in tensors]
+
+
+@pytest.fixture
+def image_input(images):
+    return iter(images)
+
+
+@pytest.fixture(scope="session")
+def image_files(tmpdir_factory, images):
+    tmp_path = tmpdir_factory.mktemp("img_data")
+    paths = [Path(tmp_path / f"image_{i}.png") for i, img in enumerate(images)]
+    [img.save(path) for img, path in zip(images, paths)]
+    return paths
