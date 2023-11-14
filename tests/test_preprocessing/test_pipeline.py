@@ -12,7 +12,7 @@ from dicom_utils.volume import ReduceVolume
 from torch import Tensor
 
 from torch_dicom.datasets import ImagePathDataset
-from torch_dicom.preprocessing.pipeline import PreprocessingPipeline
+from torch_dicom.preprocessing.pipeline import OutputFormat, PreprocessingPipeline
 
 
 class TestPreprocessingPipeline:
@@ -21,7 +21,7 @@ class TestPreprocessingPipeline:
     @pytest.mark.parametrize("rescale", [False, True])
     def test_preprocess_dicom(self, tmp_path, dicoms, dicom_iterator, file_iterator, voi_lut, inversion, rescale):
         dicoms = deepcopy(dicoms)
-        pipeline = PreprocessingPipeline(file_iterator, dicom_iterator, output_format="dcm")
+        pipeline = PreprocessingPipeline(file_iterator, dicom_iterator, output_format=OutputFormat.DICOM)
         dest = Path(tmp_path, "output")
         dest.mkdir()
 
@@ -53,7 +53,7 @@ class TestPreprocessingPipeline:
     def test_preprocess_png(self, tmp_path, dicoms, dicom_iterator, file_iterator):
         dicoms = deepcopy(dicoms)
         pipeline = PreprocessingPipeline(
-            file_iterator, dicom_iterator, output_format="png", volume_handler=ReduceVolume()
+            file_iterator, dicom_iterator, output_format=OutputFormat.PNG, volume_handler=ReduceVolume()
         )
         dest = Path(tmp_path, "output")
         dest.mkdir()
@@ -74,7 +74,7 @@ class TestPreprocessingPipeline:
 
     def test_pixel_vr(self, tmp_path, dicoms, dicom_iterator, file_iterator):
         dicoms = deepcopy(dicoms)
-        pipeline = PreprocessingPipeline(file_iterator, dicom_iterator, output_format="dcm")
+        pipeline = PreprocessingPipeline(file_iterator, dicom_iterator, output_format=OutputFormat.DICOM)
         dest = Path(tmp_path, "output")
         dest.mkdir()
 

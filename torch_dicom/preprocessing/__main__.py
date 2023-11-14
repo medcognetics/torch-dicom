@@ -12,7 +12,7 @@ from dicom_utils.volume import KeepVolume, ReduceVolume, SliceAtLocation, Volume
 from registry import Registry
 
 from .crop import MinMaxCrop
-from .pipeline import OUTPUT_FORMATS, PreprocessingPipeline
+from .pipeline import OutputFormat, PreprocessingPipeline
 from .resize import Resize
 
 
@@ -48,7 +48,11 @@ def parse_args() -> Namespace:
     parser.add_argument("-v", "--volume-handler", default="keep", help="Volume handler")
     parser.add_argument("-m", "--resize-mode", default="bilinear", help="Resize mode")
     parser.add_argument(
-        "-f", "--output-format", default="png", choices=OUTPUT_FORMATS, help="Preprocessing output format"
+        "-f",
+        "--output-format",
+        default="png",
+        choices=[str(x) for x in OutputFormat],
+        help="Preprocessing output format",
     )
     return parser.parse_args()
 
@@ -92,7 +96,7 @@ def main(args: Namespace):
         prefetch_factor=args.prefetch_factor,
         transforms=transforms,
         volume_handler=volume_handler,
-        output_format=args.output_format,
+        output_format=OutputFormat(args.output_format),
     )
     pipeline(args.output)
 

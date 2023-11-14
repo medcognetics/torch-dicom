@@ -3,9 +3,10 @@
 
 import json
 from dataclasses import dataclass, field
+from enum import StrEnum
 from functools import cached_property
 from pathlib import Path
-from typing import Any, Callable, Dict, Final, Iterable, Iterator, Sequence, Set, cast
+from typing import Any, Callable, Dict, Iterable, Iterator, Sequence, Set, cast
 
 import numpy as np
 import torch
@@ -22,7 +23,9 @@ from ..datasets import AggregateInput, collate_fn, uncollate
 from ..datasets.image import save_image
 
 
-OUTPUT_FORMATS: Final = ("png", "dcm")
+class OutputFormat(StrEnum):
+    PNG = "png"
+    DICOM = "dcm"
 
 
 def update_dicom(dicom: Dicom, img: Tensor) -> Dicom:
@@ -101,11 +104,7 @@ class PreprocessingPipeline:
     volume_handler: VolumeHandler = KeepVolume()
     dataloader_kwargs: dict = field(default_factory=dict)
     use_bar: bool = True
-    output_format: str = "png"
-
-    def __post_init__(self):
-        if self.output_format not in OUTPUT_FORMATS:
-            raise ValueError(f"output_format = {self.output_format}, expected one of {OUTPUT_FORMATS}")
+    output_format: OutputFormat = OutputFormat.PNG
 
     def __iter__(self) -> Iterator[Dict[str, Any]]:
         for batch in self.dataloader:
@@ -190,23 +189,24 @@ class PreprocessingPipeline:
         )
 
     @staticmethod
-    def _save_as(result: Dict[str, Any], dest: Path, output_format: str) -> Path:
+    def _save_as(result: Dict[str, Any], dest: Path, output_format: OutputFormat) -> Path:
         dicom = result["dicom"]
         assert isinstance(dicom, Dicom)
 
-        assert output_format in ("png", "dcm")
-        relative_dest = Path(f"{dicom.StudyInstanceUID}") / f"{dicom.SOPInstanceUID}.{output_format}"
+        relative_dest = Path(f"{dicom.StudyInstanceUID}") / f"{dicom.SOPInstanceUID}.{str(output_format)}"
 
         # Save image as DICOM or PNG
         dest_path = dest / "images" / relative_dest
         dest_path.parent.mkdir(exist_ok=True, parents=True)
-        if output_format == "dcm":
+        if output_format == OutputFormat.DICOM:
             dicom.save_as(dest_path, write_like_original=False)
-        elif output_format == "png":
+        elif output_format == OutputFormat.PNG:
             img = result["img"]
             img.squeeze_(0)
             dtype = cast(np.dtype, np.uint16 if dicom.BitsAllocated == 16 else np.uint8)
             save_image(img, dest_path, dtype)
+        else:
+            raise ValueError(f"Unknown output format {output_format}")
 
         # Convert record to dict for JSON serialization
         result["record"] = result["record"].to_dict()
