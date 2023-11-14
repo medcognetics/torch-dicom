@@ -284,7 +284,7 @@ class MinMaxCrop(Crop):
                 bounds[..., 2].scatter_reduce_(0, nonzero_b, nonzero_w, reduce="amax", include_self=False).add_(1)
                 bounds[..., 3].scatter_reduce_(0, nonzero_b, nonzero_h, reduce="amax", include_self=False).add_(1)
 
-        assert bounds.shape == (N, 4), f"Expected bounds to have shape (B, 4), got {bounds.shape}"
+        assert bounds.shape == (N, 4), f"Expected bounds to have shape ({N}, 4), got {bounds.shape}"
         return bounds
 
 
