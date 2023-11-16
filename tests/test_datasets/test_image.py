@@ -147,3 +147,16 @@ class TestImagePathDataset(TestImagePathInput):
         assert example["path"] == dataset_input[0]
         if normalize:
             assert example["img"].min() == 0 and example["img"].max() == 1
+
+
+@pytest.mark.parametrize("dtype", [np.uint8, np.uint16])
+def test_save_and_load_image(tmp_path, dtype):
+    img_tensor = torch.rand(1, 2048, 1536)
+    img_path = tmp_path / "test.png"
+    save_image(img_tensor, img_path, dtype)
+    assert img_path.is_file()
+
+    ds = ImagePathDataset(iter([img_path]), normalize=False)
+    loaded_img = ds[0]["img"]
+
+    assert torch.allclose(img_tensor, loaded_img, atol=1 / np.iinfo(dtype).max)

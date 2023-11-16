@@ -72,6 +72,11 @@ def load_image(inp: Union[PILImage.Image, Path]) -> TVImage:
     else:
         img = inp
 
+    # PIL doesn't seem to distinguish uint16 from int32. We will assume anything loaded
+    # with mode "I" is uint16.
+    if img.mode == "I":
+        img = img.convert("I;16")
+
     img_tensor = np.array(img)
     dtype_max = np.iinfo(img_tensor.dtype).max
     img_tensor = (img_tensor / dtype_max).astype(np.float32)
