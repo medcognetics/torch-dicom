@@ -2,9 +2,15 @@ import json
 from abc import ABC, abstractclassmethod, abstractmethod
 from functools import cached_property
 from pathlib import Path
-from typing import Any, Dict, Iterator, Sized, Union, cast
+from typing import Any, Dict, Iterable, Iterator, Optional, Sized, Tuple, Union, cast
 
+import pandas as pd
+import torch
 from torch.utils.data import Dataset, IterableDataset
+from torchvision.tv_tensors import BoundingBoxes, BoundingBoxFormat
+
+from ..preprocessing.crop import MinMaxCrop
+from ..preprocessing.resize import Resize
 
 
 class MetadataInputWrapper(IterableDataset, ABC):
@@ -161,3 +167,118 @@ class PreprocessingConfigMetadata(MetadataDatasetWrapper):
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(dataset={self.dataset})"
+
+
+class BoundingBoxMetadata(MetadataDatasetWrapper):
+    r"""Wraps an existing dataset that returns a dictionary of items and adds bounding box metadata from a file.
+
+    The metadata file is expected to be a CSV file with the following columns:
+        * SOPInstanceUID: SOPInstanceUID of the image
+        * x1: x coordinate of the top left corner of the bounding box (absolute coordinates)
+        * y1: y coordinate of the top left corner of the bounding box (absolute coordinates)
+        * x2: x coordinate of the bottom right corner of the bounding box (absolute coordinates)
+        * y2: y coordinate of the bottom right corner of the bounding box (absolute coordinates)
+
+    Bounding boxes are added to the example under the key "bounding_boxes". Subkeys for "boxes", and any ``extra_keys``
+    will be present. The bounding boxes will be :class:`torchvision.tv_tensors.BoundingBoxes` with format
+    :class:`~torchvision.tv_tensors.BoundingBoxFormat.XYXY`. If preprocessing metadata is available, the box coordinates
+    are transformed accordingly.
+
+    Args:
+        dataset: Dataset to wrap.
+        metadata: Path to a file with metadata.
+        extra_keys: List of extra keys to add to the example.
+
+    Shapes:
+        * ``boxes`` - :math:`(N, 4)` where :math:`N` is the number of bounding boxes.
+        * Extra keys will be lists of length :math:`N`.
+    """
+
+    def __init__(self, dataset: Dataset, metadata: Path, extra_keys: Iterable[str] = []):
+        super().__init__(dataset, metadata)
+        self.extra_keys = extra_keys
+
+    @classmethod
+    def load_metadata(cls, metadata: Path) -> Any:
+        r"""Loads metadata from a file."""
+        df = pd.read_csv(metadata, index_col="SOPInstanceUID")
+        return df
+
+    def get_key_from_example(self, example: Dict[str, Any]) -> Optional[Any]:
+        """
+        Extracts the key from the given example.
+
+        The key is extracted from the 'record' field of the example if it exists.
+        If not, it is extracted from the 'path' field if it exists and is not None.
+        If neither conditions are met, None is returned.
+
+        Args:
+            example: The example from which to extract the key.
+
+        Returns:
+            The extracted key if it exists, None otherwise.
+        """
+        key = (
+            example["record"].SOPInstanceUID
+            if "record" in example
+            else example["path"].stem
+            if "path" in example and example["path"] is not None
+            else None
+        )
+        return key
+
+    def get_metadata(self, example: Dict[str, Any]) -> Dict[str, Any]:
+        key = self.get_key_from_example(example)
+        if key is None:
+            raise KeyError(f"Unable to find key in example {example}")  # pragma: no cover
+        elif key not in self.metadata.index:
+            return {}
+
+        # Loop through boxes and apply preprocessing
+        bboxes, extra_keys = [], {}
+        for box in self._iterate_boxes(key, example.get("preprocessing", {})):
+            bboxes.append(box["bbox"])
+            for k in self.extra_keys:
+                extra_keys.setdefault(k, []).append(box.get(k, None))
+
+        # Convert bboxes to BoundingBoxes. Since preprocessing is applied to the bounding boxes,
+        # the canvas size is the same as the image size.
+        if "img_size" in example:
+            img_size = tuple(example["img_size"].tolist())
+        elif "img" in example:
+            img_size = tuple(example["img"].shape[-2:])
+        else:
+            raise KeyError(f"Unable to find img_size in example {example}")  # pragma: no cover
+        assert len(img_size) == 2, f"Expected 2D image size, got {img_size}"
+        bboxes = BoundingBoxes(
+            torch.stack(bboxes),
+            format=BoundingBoxFormat.XYXY,
+            canvas_size=cast(Tuple[int, int], img_size),
+        )
+
+        return {
+            "bounding_boxes": {
+                "boxes": bboxes,
+                **extra_keys,
+            }
+        }
+
+    def _iterate_boxes(self, key: str, preprocessing_config: Dict[str, Any]) -> Iterator[Dict[str, Any]]:
+        rows = self.metadata.loc[key]
+        if isinstance(rows, pd.Series):
+            rows = pd.DataFrame(rows).transpose()
+
+        for _, row in rows.iterrows():
+            bbox = torch.tensor(
+                [row["x1"], row["y1"], row["x2"], row["y2"]],
+                dtype=torch.long,
+            )
+
+            # Apply preprocessing to bounding box in the same order as the image
+            if "crop_bounds" in preprocessing_config:
+                bounds = torch.tensor(preprocessing_config["crop_bounds"]).view(1, -1).expand(2, -1)
+                bbox = MinMaxCrop.apply_to_coords(bbox.view(-1, 2), bounds)
+            if "resize_config" in preprocessing_config:
+                bbox = Resize.apply_to_coords(bbox.view(-1, 2), preprocessing_config["resize_config"])
+
+            yield {"bbox": bbox.view(4), **{k: row[k] for k in self.extra_keys}}
