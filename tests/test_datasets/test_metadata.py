@@ -5,7 +5,9 @@ import pandas as pd
 import pytest
 from torch.utils.data import Dataset
 
-from torch_dicom.datasets.metadata import MetadataDatasetWrapper, MetadataInputWrapper
+from torch_dicom.datasets import DicomPathDataset
+from torch_dicom.datasets.metadata import MetadataDatasetWrapper, MetadataInputWrapper, PreprocessingConfigMetadata
+from torch_dicom.preprocessing.pipeline import PreprocessingPipeline
 
 
 class DummyMetadataInputWrapper(MetadataInputWrapper):
@@ -52,6 +54,10 @@ class TestMetadataInputWrapper:
         assert wrapper.dataset == dataset
         assert isinstance(wrapper.metadata, pd.DataFrame)
 
+    def test_repr(self, dataset: Dataset, metadata: Path):
+        wrapper = DummyMetadataInputWrapper(dataset, metadata)
+        assert isinstance(repr(wrapper), str)
+
     def test_load_metadata(self, dataset: Dataset, metadata: Path):
         wrapper = DummyMetadataInputWrapper(dataset, metadata)
         assert isinstance(wrapper.load_metadata(metadata), pd.DataFrame)
@@ -79,6 +85,10 @@ class TestMetadataDatasetWrapper:
         assert wrapper.dataset == dataset
         assert isinstance(wrapper.metadata, pd.DataFrame)
 
+    def test_repr(self, dataset: Dataset, metadata: Path):
+        wrapper = DummyMetadataDatasetWrapper(dataset, metadata)
+        assert isinstance(repr(wrapper), str)
+
     def test_load_metadata(self, dataset: Dataset, metadata: Path):
         wrapper = DummyMetadataDatasetWrapper(dataset, metadata)
         assert isinstance(wrapper.load_metadata(metadata), pd.DataFrame)
@@ -95,3 +105,55 @@ class TestMetadataDatasetWrapper:
         wrapper = DummyMetadataDatasetWrapper(dataset, metadata)
         for i in range(len(dataset)):
             assert wrapper[i] == dataset[i]
+
+    def test_iter(self, dataset: Dataset, metadata: Path):
+        wrapper = DummyMetadataDatasetWrapper(dataset, metadata)
+        for item in wrapper:
+            assert isinstance(item, dict)
+            assert "dummy" in item
+
+
+class TestPreprocessingConfigMetadata:
+    @pytest.fixture(scope="class")
+    def preprocessed_data(self, tmp_path_factory, dicoms):
+        dest = tmp_path_factory.mktemp("data")
+        pipeline = PreprocessingPipeline(dicoms=dicoms)
+        out_files = pipeline(dest)
+        assert out_files
+        return dest
+
+    @pytest.fixture(scope="class")
+    def dataset(self, preprocessed_data) -> Dataset:
+        paths = preprocessed_data.rglob("*.dcm")
+        dataset = DicomPathDataset(paths)
+        assert len(dataset), "Failed to create dataset"
+        return dataset
+
+    def test_init(self, dataset: Dataset):
+        wrapper = PreprocessingConfigMetadata(dataset)
+        assert wrapper.dataset == dataset
+
+    def test_repr(self, dataset: Dataset):
+        wrapper = PreprocessingConfigMetadata(dataset)
+        assert isinstance(repr(wrapper), str)
+
+    @pytest.fixture
+    def metadata(self, tmp_path: Path) -> Path:
+        metadata_file = tmp_path / "metadata.json"
+        metadata_file.write_text('{"preprocessing": "test"}')
+        return metadata_file
+
+    def test_load_metadata(self, dataset: Dataset, metadata: Path):
+        wrapper = PreprocessingConfigMetadata(dataset)
+        loaded_metadata = wrapper.load_metadata(metadata)
+        assert isinstance(loaded_metadata, dict)
+        assert "preprocessing" in loaded_metadata
+        assert loaded_metadata["preprocessing"] == "test"
+
+    def test_get_metadata(self, dataset: Dataset, metadata: Path):
+        wrapper = PreprocessingConfigMetadata(dataset)
+        example = wrapper[0]
+        metadata_dict = wrapper.get_metadata(example)
+        assert isinstance(metadata_dict, dict)
+        assert "preprocessing" in metadata_dict
+        assert metadata_dict["preprocessing"]
