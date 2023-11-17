@@ -13,6 +13,31 @@ from ..preprocessing.crop import MinMaxCrop
 from ..preprocessing.resize import Resize
 
 
+def get_sopuid_key_from_example(example: Dict[str, Any]) -> Optional[Any]:
+    """
+    Extracts the SOPInstanceUID from the given example.
+
+    The key is extracted from the 'record' field of the example if it exists.
+    If not, it is extracted from the 'path' field if it exists and is not None, assuming
+    that the path stem is the SOPInstanceUID.
+    If neither conditions are met, None is returned.
+
+    Args:
+        example: The example from which to extract the key.
+
+    Returns:
+        The extracted key if it exists, None otherwise.
+    """
+    key = (
+        example["record"].SOPInstanceUID
+        if "record" in example
+        else example["path"].stem
+        if "path" in example and example["path"] is not None
+        else None
+    )
+    return key
+
+
 class MetadataInputWrapper(IterableDataset, ABC):
     r"""Wraps an existing input that returns a dictionary of items and adds metadata from a file.
 
@@ -193,13 +218,14 @@ class BoundingBoxMetadata(MetadataDatasetWrapper):
         * ``boxes`` - :math:`(N, 4)` where :math:`N` is the number of bounding boxes.
         * Extra keys will be lists of length :math:`N`.
     """
+    metadata: pd.DataFrame
 
     def __init__(self, dataset: Dataset, metadata: Path, extra_keys: Iterable[str] = []):
         super().__init__(dataset, metadata)
         self.extra_keys = extra_keys
 
     @classmethod
-    def load_metadata(cls, metadata: Path) -> Any:
+    def load_metadata(cls, metadata: Path) -> pd.DataFrame:
         r"""Loads metadata from a file."""
         df = pd.read_csv(metadata, index_col="SOPInstanceUID")
         return df
@@ -218,21 +244,14 @@ class BoundingBoxMetadata(MetadataDatasetWrapper):
         Returns:
             The extracted key if it exists, None otherwise.
         """
-        key = (
-            example["record"].SOPInstanceUID
-            if "record" in example
-            else example["path"].stem
-            if "path" in example and example["path"] is not None
-            else None
-        )
-        return key
+        return get_sopuid_key_from_example(example)
 
     def get_metadata(self, example: Dict[str, Any]) -> Dict[str, Any]:
         key = self.get_key_from_example(example)
         if key is None:
             raise KeyError(f"Unable to find key in example {example}")  # pragma: no cover
         elif key not in self.metadata.index:
-            return {}
+            return {"bounding_boxes": {}}
 
         # Loop through boxes and apply preprocessing
         bboxes, extra_keys = [], {}
@@ -282,3 +301,50 @@ class BoundingBoxMetadata(MetadataDatasetWrapper):
                 bbox = Resize.apply_to_coords(bbox.view(-1, 2), preprocessing_config["resize_config"])
 
             yield {"bbox": bbox.view(4), **{k: row[k] for k in self.extra_keys}}
+
+
+class DataFrameMetadata(MetadataDatasetWrapper):
+    r"""Wraps an existing dataset that returns a dictionary of items and adds metadata from a file / DataFrame.
+    The default implementation assumes that the metadata file is a CSV file indexed by a "SOPInstanceUID" column.
+    All columns are added to the example under the key "metadata".
+
+    Args:
+        dataset: Dataset to wrap.
+        metadata: Path to a file with metadata.
+    """
+    metadata: pd.DataFrame
+
+    @classmethod
+    def load_metadata(cls, metadata: Path) -> pd.DataFrame:
+        r"""Loads metadata from a file."""
+        return pd.read_csv(metadata, index_col="SOPInstanceUID")
+
+    def get_key_from_example(self, example: Dict[str, Any]) -> Optional[Any]:
+        """
+        Extracts the key from the given example.
+
+        The key is extracted from the 'record' field of the example if it exists.
+        If not, it is extracted from the 'path' field if it exists and is not None.
+        If neither conditions are met, None is returned.
+
+        Args:
+            example: The example from which to extract the key.
+
+        Returns:
+            The extracted key if it exists, None otherwise.
+        """
+        return get_sopuid_key_from_example(example)
+
+    def get_metadata(self, example: Dict[str, Any]) -> Dict[str, Any]:
+        r"""Gets metadata for a given example.
+
+        Returns:
+            Dictionary of metadata to be added to the example.
+        """
+        key = self.get_key_from_example(example)
+        if key is None:
+            raise KeyError(f"Unable to find key in example {example}")  # pragma: no cover
+        elif key not in self.metadata.index:
+            return {"metadata": {}}
+
+        return {"metadata": self.metadata.loc[key].to_dict()}

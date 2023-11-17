@@ -10,6 +10,7 @@ from torchvision.tv_tensors import BoundingBoxes, BoundingBoxFormat
 from torch_dicom.datasets import DicomPathDataset
 from torch_dicom.datasets.metadata import (
     BoundingBoxMetadata,
+    DataFrameMetadata,
     MetadataDatasetWrapper,
     MetadataInputWrapper,
     PreprocessingConfigMetadata,
@@ -121,7 +122,7 @@ class TestMetadataDatasetWrapper:
             assert "dummy" in item
 
 
-class TestBoundingBoxMetadata:
+class TestPreprocessingConfigMetadata:
     @pytest.fixture(scope="class")
     def preprocessed_data(self, tmp_path_factory, dicoms):
         dest = tmp_path_factory.mktemp("data")
@@ -167,7 +168,7 @@ class TestBoundingBoxMetadata:
         assert metadata_dict["preprocessing"]
 
 
-class TestPreprocessingConfigMetadata:
+class TestBoundingBoxMetadata:
     @pytest.fixture(scope="class")
     def preprocessed_data(self, tmp_path_factory, dicoms):
         dest = tmp_path_factory.mktemp("data")
@@ -218,6 +219,7 @@ class TestPreprocessingConfigMetadata:
     def test_init(self, dataset: Dataset, box_data):
         wrapper = BoundingBoxMetadata(dataset, box_data)
         assert wrapper.dataset == dataset
+        assert isinstance(wrapper.metadata, pd.DataFrame)
 
     def test_repr(self, dataset: Dataset, box_data):
         wrapper = BoundingBoxMetadata(dataset, box_data)
@@ -239,3 +241,61 @@ class TestPreprocessingConfigMetadata:
         wrapper = BoundingBoxMetadata(dataset, box_data)
         example = wrapper[1]
         assert isinstance(example, dict)
+        assert example["bounding_boxes"] == {}
+
+
+class TestDataFrameMetadata:
+    @pytest.fixture(scope="class")
+    def preprocessed_data(self, tmp_path_factory, dicoms):
+        dest = tmp_path_factory.mktemp("data")
+        pipeline = PreprocessingPipeline(dicoms=dicoms)
+        out_files = pipeline(dest)
+        assert out_files
+        return dest
+
+    @pytest.fixture(scope="class")
+    def dataset(self, preprocessed_data) -> Dataset:
+        paths = preprocessed_data.rglob("*.dcm")
+        dataset = DicomPathDataset(paths)
+        assert len(dataset), "Failed to create dataset"
+        return dataset
+
+    @pytest.fixture(scope="class")
+    def metadata(self, dicoms, tmp_path_factory) -> Path:
+        dest = tmp_path_factory.mktemp("metadata")
+        rows = []
+        for i, dicom in enumerate(dicoms):
+            if i % 2 == 0:
+                metadata = {
+                    "SOPInstanceUID": dicom.SOPInstanceUID,
+                    "rows": dicom.Rows,
+                    "columns": dicom.Columns,
+                }
+                rows.append(metadata)
+
+        # Write boxes to a CSV file
+        path = dest / "metadata.csv"
+        boxes_df = pd.DataFrame(rows)
+        boxes_df.to_csv(path, index=False)
+        return path
+
+    def test_init(self, dataset: Dataset, metadata):
+        wrapper = DataFrameMetadata(dataset, metadata)
+        assert wrapper.dataset == dataset
+        assert isinstance(wrapper.metadata, pd.DataFrame)
+
+    def test_repr(self, dataset: Dataset, metadata):
+        wrapper = DataFrameMetadata(dataset, metadata)
+        assert isinstance(repr(wrapper), str)
+
+    def test_getitem_with_metadata(self, dataset: Dataset, metadata: Path):
+        wrapper = DataFrameMetadata(dataset, metadata)
+        example = wrapper[0]
+        assert isinstance(example["metadata"], dict)
+        assert example["metadata"]["rows"] == 2048
+        assert example["metadata"]["columns"] == 1536
+
+    def test_getitem_without_metadata(self, dataset: Dataset, metadata: Path):
+        wrapper = DataFrameMetadata(dataset, metadata)
+        example = wrapper[1]
+        assert example["metadata"] == {}
