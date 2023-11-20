@@ -16,7 +16,7 @@ from torch_dicom.datasets.metadata import (
     PreprocessingConfigMetadata,
 )
 from torch_dicom.preprocessing import MinMaxCrop, Resize
-from torch_dicom.preprocessing.pipeline import PreprocessingPipeline
+from torch_dicom.preprocessing.pipeline import OutputFormat, PreprocessingPipeline
 
 
 class DummyMetadataInputWrapper(MetadataInputWrapper):
@@ -126,7 +126,7 @@ class TestPreprocessingConfigMetadata:
     @pytest.fixture(scope="class")
     def preprocessed_data(self, tmp_path_factory, dicoms):
         dest = tmp_path_factory.mktemp("data")
-        pipeline = PreprocessingPipeline(dicoms=dicoms)
+        pipeline = PreprocessingPipeline(dicoms=dicoms, output_format=OutputFormat.DICOM)
         out_files = pipeline(dest)
         assert out_files
         return dest
@@ -176,7 +176,7 @@ class TestBoundingBoxMetadata:
             MinMaxCrop(),
             Resize((512, 384)),
         ]
-        pipeline = PreprocessingPipeline(dicoms=dicoms, transforms=transforms)
+        pipeline = PreprocessingPipeline(dicoms=dicoms, transforms=transforms, output_format=OutputFormat.DICOM)
         out_files = pipeline(dest)
         assert out_files
         return dest
@@ -247,7 +247,7 @@ class TestDataFrameMetadata:
     @pytest.fixture(scope="class")
     def preprocessed_data(self, tmp_path_factory, dicoms):
         dest = tmp_path_factory.mktemp("data")
-        pipeline = PreprocessingPipeline(dicoms=dicoms)
+        pipeline = PreprocessingPipeline(dicoms=dicoms, output_format=OutputFormat.DICOM)
         out_files = pipeline(dest)
         assert out_files
         return dest
