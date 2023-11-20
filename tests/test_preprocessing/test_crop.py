@@ -1,9 +1,12 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+import numpy as np
+import pandas as pd
 import pytest
 import torch
+from dicom_utils.container import DicomImageFileRecord
 
-from torch_dicom.preprocessing.crop import MinMaxCrop
+from torch_dicom.preprocessing.crop import MinMaxCrop, ROICrop
 
 
 class TestMinMaxCrop:
@@ -98,3 +101,48 @@ class TestMinMaxCrop:
         exp = torch.tensor(exp, dtype=torch.long).view_as(coords)
         act = MinMaxCrop.unapply_to_coords(coords, bounds, clip)
         assert torch.allclose(act, exp)
+
+
+class TestROICrop:
+    @pytest.fixture
+    def crop(self, roi_crop_csv, min_size):
+        return ROICrop(path=roi_crop_csv, min_size=min_size)
+
+    @pytest.fixture(params=[torch.float32, torch.int32])
+    def inp(self, mocker, request, height, width, sopuid):
+        dtype = request.param
+        x = torch.rand(1, height, width).to(dtype)
+        rec = mocker.MagicMock(spec_set=DicomImageFileRecord, SOPInstanceUID=sopuid)
+        return {
+            "img": x,
+            "record": rec,
+        }
+
+    @pytest.mark.parametrize(
+        "height, width, sopuid, min_size, exp",
+        [
+            (30, 30, "1.2.3", (30, 30), (0, 0, 30, 30)),
+            (30, 30, "1.2.3", (5, 5), (0, 0, 10, 10)),
+            (30, 30, "2.3.4", (30, 30), (0, 0, 30, 30)),
+            (30, 30, "4.5.6", (5, 5), (10, 10, 15, 15)),
+        ],
+    )
+    def test_get_bounds(self, crop, sopuid, inp, exp):
+        np.random.seed(0)
+        pd.set_option("mode.chained_assignment", None)
+        bounds = crop.get_bounds(inp["img"], sopuid)
+        exp = inp["img"].new_tensor(exp, dtype=torch.long).view(4)
+        assert torch.allclose(bounds, exp)
+
+    @pytest.mark.parametrize(
+        "height, width, sopuid, min_size, exp",
+        [
+            (30, 30, "1.2.3", (30, 30), (30, 30)),
+            (30, 30, "1.2.3", (5, 5), (10, 10)),
+        ],
+    )
+    def test_crop(self, crop, inp, exp):
+        np.random.seed(0)
+        pd.set_option("mode.chained_assignment", None)
+        result = crop(inp)
+        assert result["img"].shape[-2:] == exp
