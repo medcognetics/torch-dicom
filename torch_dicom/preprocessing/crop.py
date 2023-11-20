@@ -5,7 +5,7 @@ import warnings
 from dataclasses import dataclass
 from functools import cached_property
 from pathlib import Path
-from typing import Any, Dict, Final, Optional, Tuple, TypeVar, Union, cast, overload
+from typing import TYPE_CHECKING, Any, Dict, Final, Optional, Tuple, TypeVar, Union, cast, overload
 
 import pandas as pd
 import torch
@@ -13,7 +13,12 @@ from dicom_utils.container import SOPUID, DicomImageFileRecord
 from einops import reduce, repeat
 from torch import Tensor
 
-from ..datasets import DicomExample, TensorExample
+
+if TYPE_CHECKING:
+    from ..datasets import DicomExample, TensorExample
+else:
+    DicomExample = Any
+    TensorExample = Any
 
 
 E = TypeVar("E", bound=Union[DicomExample, TensorExample, Dict[str, Any]])
