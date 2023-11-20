@@ -193,22 +193,21 @@ class TestBoundingBoxMetadata:
         dest = tmp_path_factory.mktemp("boxes")
         np.random.seed(0)
         boxes = []
-        for i, dicom in enumerate(dicoms):
-            if i % 2 == 0:
-                rows, cols = dicom.Rows, dicom.Columns
-                x1 = np.random.randint(0, cols)
-                y1 = np.random.randint(0, rows)
-                x2 = np.random.randint(x1, cols)
-                y2 = np.random.randint(y1, rows)
-                metadata = {
-                    "SOPInstanceUID": dicom.SOPInstanceUID,
-                    "x1": x1,
-                    "y1": y1,
-                    "x2": x2,
-                    "y2": y2,
-                    "extra": "metadata",
-                }
-                boxes.append(metadata)
+        for dicom in dicoms[::2]:
+            rows, cols = dicom.Rows, dicom.Columns
+            x1 = np.random.randint(0, cols)
+            y1 = np.random.randint(0, rows)
+            x2 = np.random.randint(x1, cols)
+            y2 = np.random.randint(y1, rows)
+            metadata = {
+                "SOPInstanceUID": dicom.SOPInstanceUID,
+                "x1": x1,
+                "y1": y1,
+                "x2": x2,
+                "y2": y2,
+                "extra": "metadata",
+            }
+            boxes.append(metadata)
 
         # Write boxes to a CSV file
         path = dest / "boxes.csv"
@@ -264,14 +263,13 @@ class TestDataFrameMetadata:
     def metadata(self, dicoms, tmp_path_factory) -> Path:
         dest = tmp_path_factory.mktemp("metadata")
         rows = []
-        for i, dicom in enumerate(dicoms):
-            if i % 2 == 0:
-                metadata = {
-                    "SOPInstanceUID": dicom.SOPInstanceUID,
-                    "rows": dicom.Rows,
-                    "columns": dicom.Columns,
-                }
-                rows.append(metadata)
+        for dicom in dicoms[::2]:
+            metadata = {
+                "SOPInstanceUID": dicom.SOPInstanceUID,
+                "rows": dicom.Rows,
+                "columns": dicom.Columns,
+            }
+            rows.append(metadata)
 
         # Write boxes to a CSV file
         path = dest / "metadata.csv"
