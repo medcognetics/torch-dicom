@@ -3,6 +3,7 @@
 
 import json
 from dataclasses import dataclass, field
+from enum import StrEnum
 from functools import cached_property
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, Iterator, Sequence, Set, cast
@@ -19,6 +20,12 @@ from tqdm_multiprocessing import ConcurrentMapper
 
 from .. import __version__
 from ..datasets import AggregateInput, collate_fn, uncollate
+from ..datasets.image import save_image
+
+
+class OutputFormat(StrEnum):
+    PNG = "png"
+    DICOM = "dcm"
 
 
 def update_dicom(dicom: Dicom, img: Tensor) -> Dicom:
@@ -97,6 +104,7 @@ class PreprocessingPipeline:
     volume_handler: VolumeHandler = KeepVolume()
     dataloader_kwargs: dict = field(default_factory=dict)
     use_bar: bool = True
+    output_format: OutputFormat = OutputFormat.PNG
 
     def __iter__(self) -> Iterator[Dict[str, Any]]:
         for batch in self.dataloader:
@@ -108,8 +116,9 @@ class PreprocessingPipeline:
                 img = example["img"]
                 assert isinstance(dicom, Dicom)
                 assert isinstance(img, Tensor)
-                dicom = update_dicom(dicom, img)
-                dicom["PixelData"].VR = "OB"
+                if self.output_format == "dcm":
+                    dicom = update_dicom(dicom, img)
+                    dicom["PixelData"].VR = "OB"
 
                 # Propagate to dict and yield
                 example["dicom"] = dicom
@@ -128,7 +137,9 @@ class PreprocessingPipeline:
         # Input is already accelerated by DataLoader multi-processing.
         with ConcurrentMapper(threads=True, jobs=self.num_workers, ignore_exceptions=False) as mapper:
             mapper.create_bar(desc="Preprocessing", disable=not self.use_bar)
-            result: Set[Path] = set(mapper(lambda x: PreprocessingPipeline._save_as(x, dest), iter(self)))
+            result: Set[Path] = set(
+                mapper(lambda x: PreprocessingPipeline._save_as(x, dest, self.output_format), iter(self))
+            )
         return result
 
     def apply_transforms(self, inp: Dict[str, Any]) -> Dict[str, Any]:
@@ -151,16 +162,18 @@ class PreprocessingPipeline:
 
     @cached_property
     def dataloader(self) -> DataLoader:
-        # NOTE: We don't want to normalize the images here because we want them to be int dtype.
+        # NOTE: We don't want to normalize the images here for DICOM output because we want them to be int dtype.
         # We don't want to apply the voi_lut here because it will be applied when loading the
         # preprocessed image and applying the voi_lut again will cause the image to be incorrect.
+        # For other output formats we will apply these transformations.
+        should_adjust_image = self.output_format != "dcm"
         ds = AggregateInput(
             dicom_paths=self.dicom_paths,
             dicoms=self.dicoms,
-            normalize=False,
-            voi_lut=False,
-            inversion=False,
-            rescale=False,
+            normalize=should_adjust_image,
+            voi_lut=should_adjust_image,
+            inversion=should_adjust_image,
+            rescale=should_adjust_image,
             volume_handler=self.volume_handler,
             skip_errors=True,
         )
@@ -176,16 +189,29 @@ class PreprocessingPipeline:
         )
 
     @staticmethod
-    def _save_as(result: Dict[str, Any], dest: Path) -> Path:
+    def _save_as(result: Dict[str, Any], dest: Path, output_format: OutputFormat) -> Path:
         dicom = result["dicom"]
         assert isinstance(dicom, Dicom)
 
-        # Save the DICOM
-        dest_path = dest / "images" / f"{dicom.StudyInstanceUID}" / f"{dicom.SOPInstanceUID}.dcm"
-        dest_path.parent.mkdir(exist_ok=True, parents=True)
-        dicom.save_as(dest_path, write_like_original=False)
+        relative_dest = Path(f"{dicom.StudyInstanceUID}") / f"{dicom.SOPInstanceUID}.{str(output_format)}"
 
-        # Pop big objects
+        # Save image as DICOM or PNG
+        dest_path = dest / "images" / relative_dest
+        dest_path.parent.mkdir(exist_ok=True, parents=True)
+        if output_format == OutputFormat.DICOM:
+            dicom.save_as(dest_path, write_like_original=False)
+        elif output_format == OutputFormat.PNG:
+            img = result["img"]
+            img.squeeze_(0)
+            dtype = cast(np.dtype, np.uint16 if dicom.BitsAllocated == 16 else np.uint8)
+            save_image(img, dest_path, dtype)
+        else:
+            raise ValueError(f"Unknown output format {output_format}")
+
+        # Convert record to dict for JSON serialization
+        result["record"] = result["record"].to_dict()
+
+        # Pop things we don't want to serialize in metadata
         result.pop("dicom")
         result.pop("img")
         result.pop("record")
@@ -193,7 +219,8 @@ class PreprocessingPipeline:
         # Ensure any tensors are converted to lists
         result = recursive_tensor_to_list(result)
 
-        metadata_path = dest / "metadata" / f"{dicom.StudyInstanceUID}" / f"{dicom.SOPInstanceUID}.json"
+        # Save metadata JSON
+        metadata_path = dest / "metadata" / relative_dest.with_suffix(".json")
         metadata_path.parent.mkdir(exist_ok=True, parents=True)
         with metadata_path.open("w") as f:
             json.dump(result, f)
