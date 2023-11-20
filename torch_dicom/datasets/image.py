@@ -51,6 +51,9 @@ def save_image(img: Tensor, path: Path, dtype: np.dtype = cast(np.dtype, np.uint
     else:
         img_np = img.numpy()
 
+    if dtype == np.uint16 and img.ndim == 3:
+        raise ValueError("Saving 3-channel uint16 images is not supported")  # pragma: no cover
+
     PILImage.fromarray(img_np).save(str(path))
 
 

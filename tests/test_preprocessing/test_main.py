@@ -22,6 +22,8 @@ def test_main(tmp_path, files, mocker):
         sys.argv[0],
         str(src),
         str(dest),
+        "-f",
+        "dcm",
     ]
 
     try:

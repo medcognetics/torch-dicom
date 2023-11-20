@@ -12,7 +12,7 @@ from dicom_utils.volume import KeepVolume, ReduceVolume, SliceAtLocation, Volume
 from registry import Registry
 
 from .crop import MinMaxCrop, ROICrop
-from .pipeline import PreprocessingPipeline
+from .pipeline import OutputFormat, PreprocessingPipeline
 from .resize import Resize
 
 
@@ -49,6 +49,13 @@ def parse_args() -> Namespace:
         "-v", "--volume-handler", default="keep", choices=VOLUME_HANDLERS.available_keys(), help="Volume handler"
     )
     parser.add_argument("-m", "--resize-mode", default="bilinear", help="Resize mode")
+    parser.add_argument(
+        "-f",
+        "--output-format",
+        default="png",
+        choices=[str(x) for x in OutputFormat],
+        help="Preprocessing output format",
+    )
     parser.add_argument("-r", "--roi-crop", type=Path, default=None, help="Path to ROI crop file for ROICrop")
     return parser.parse_args()
 
@@ -92,6 +99,7 @@ def main(args: Namespace):
         prefetch_factor=args.prefetch_factor,
         transforms=transforms,
         volume_handler=volume_handler,
+        output_format=OutputFormat(args.output_format),
     )
     pipeline(args.output)
 
