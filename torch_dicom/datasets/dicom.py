@@ -42,7 +42,7 @@ from .path import PathDataset, PathInput
 
 DUMMY_PATH: Final[Path] = Path("dummy.dcm")
 D = TypeVar("D", bound=Union[Dict[str, Any], TypedDict])
-LIST_COLLATE_TYPES: Final = (Path, FileRecord, Dicom)
+LIST_COLLATE_TYPES: Final = (Path, FileRecord, Dicom, str, dict)
 
 
 class DicomExample(TypedDict):
@@ -63,12 +63,16 @@ def collate_fn(
     list_types: Tuple[Type, ...] = LIST_COLLATE_TYPES,
     dataclasses_as_lists: bool = True,
     broadcast_tensors: bool = False,
+    missing_value: Any = None,
 ) -> D:
-    r"""Collate function that supports Paths and FileRecords.
-    All inputs should be dictionaries with the same keys. Any key that is a
-    Path, DICOM, or FileRecord will be joined as a list. If all inputs are not dictionaries
+    r"""Collate function that supports collating certain types as lists.
+    All inputs should be dictionaries. Any key that is of a type in ``list_types``
+    will be joined as a list. If all inputs are not dictionaries
     or there is an error, and default_fallback is True, the default collate function
     will be used.
+
+    Note:
+        The default types that will be collated as lists are: Path, FileRecord, Dicom, str, dict.
 
     Args:
         batch: The batch of inputs to collate.
@@ -78,6 +82,7 @@ def collate_fn(
         dataclasses_as_lists: If True, dataclasses will be collated as lists.
         broadcast_tensors: If True, tensors will be broadcasted to the largest
             size in the batch.
+        missing_value: The value to use when a key is missing in an example.
 
     Returns:
         The collated batch.
@@ -97,41 +102,39 @@ def collate_fn(
     batch = [copy(b) for b in batch]
 
     try:
-        manual: Dict[Type, Dict[str, List[Any]]] = {k: {} for k in list_types}
-        proto = batch[0]
+        manually_collated: Dict[str, List[Any]] = {}
 
-        # ensure keys are copied since we will be mutating
-        for key in set(proto.keys()):
+        key_set = {key for example in batch for key in example.keys()}
+        for key in key_set:
+            # If the key is missing in any example we will collate as a list.
+            any_missing_key = any(key not in example for example in batch)
+
             # apply to every element in the batch
             for elem in batch:
                 assert isinstance(elem, dict)
                 elem = cast(Dict[str, Any], elem)
 
                 # read the value of the current key for this batch element
-                if key not in elem:
-                    raise KeyError(f"Key {key} not found in {elem}")
-                value = elem[key]
+                value = elem.get(key, missing_value)
 
                 # check if the value needs manual collation.
                 # if so, add it to the manual collation container and remove it from the batch element
-                for dtype, container in manual.items():
-                    if isinstance(value, dtype):
-                        container.setdefault(key, []).append(value)
-                        elem.pop(key)
+                for dtype in list_types:
+                    if isinstance(value, dtype) or any_missing_key:
+                        manually_collated.setdefault(key, []).append(value)
+                        elem.pop(key, None)
                         break
                 else:
                     if is_dataclass(value) and dataclasses_as_lists:
-                        manual.setdefault(type(value), {}).setdefault(key, []).append(value)
-                        elem.pop(key)
+                        manually_collated.setdefault(key, []).append(value)
+                        elem.pop(key, None)
 
         # we should have removed all batch elem values that are being handled manually
         assert not any(isinstance(v, list_types) for elem in batch for v in elem.values())
 
         # call default collate and merge with the manually collated dtypes
         result = default_collate(cast(List[Any], batch))
-        for v in manual.values():
-            result.update(v)
-
+        result.update(manually_collated)
         return result
 
     except Exception as e:
