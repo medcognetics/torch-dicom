@@ -7,7 +7,7 @@ import pytest
 from torch.utils.data import Dataset
 from torchvision.tv_tensors import BoundingBoxes, BoundingBoxFormat
 
-from torch_dicom.datasets import DicomPathDataset
+from torch_dicom.datasets import DicomPathDataset, collate_fn
 from torch_dicom.datasets.metadata import (
     BoundingBoxMetadata,
     DataFrameMetadata,
@@ -297,3 +297,12 @@ class TestDataFrameMetadata:
         wrapper = DataFrameMetadata(dataset, metadata)
         example = wrapper[1]
         assert example["metadata"] == {}
+
+    def test_collate_fn(self, dataset: Dataset, metadata: Path):
+        wrapper = DataFrameMetadata(dataset, metadata)
+        batch = [wrapper[i] for i in range(len(wrapper))]
+        collated = collate_fn(batch, default_fallback=False)
+        assert isinstance(collated, dict)
+        assert "metadata" in collated
+        assert isinstance(collated["metadata"], list)
+        assert len(collated["metadata"]) == len(batch)
