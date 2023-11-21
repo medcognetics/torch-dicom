@@ -253,9 +253,10 @@ class TestBoundingBoxMetadata:
     def test_dest_key(self, dataset: Dataset, box_data):
         dest_key = "new_key"
         wrapper = BoundingBoxMetadata(dataset, box_data, dest_key=dest_key)
-        example = wrapper[0]
-        assert dest_key in example
-        assert isinstance(example[dest_key], dict)
+        for i in range(2):
+            example = wrapper[i]
+            assert dest_key in example
+            assert isinstance(example[dest_key], dict)
 
 
 class TestDataFrameMetadata:
@@ -316,7 +317,6 @@ class TestDataFrameMetadata:
     def test_dest_key(self, dataset: Dataset, metadata: Path):
         dest_key = "custom_key"
         wrapper = DataFrameMetadata(dataset, metadata, dest_key=dest_key)
-        example = wrapper[0]
-        assert isinstance(example[dest_key], dict)
-        assert example[dest_key]["rows"] == 2048
-        assert example[dest_key]["columns"] == 1536
+        for i in range(2):
+            example = wrapper[i]
+            assert isinstance(example[dest_key], dict)

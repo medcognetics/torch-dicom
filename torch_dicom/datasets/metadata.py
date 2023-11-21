@@ -257,7 +257,7 @@ class BoundingBoxMetadata(MetadataDatasetWrapper):
         if key is None:
             raise KeyError(f"Unable to find key in example {example}")  # pragma: no cover
         elif key not in self.metadata.index:
-            return {"bounding_boxes": {}}
+            return {self.dest_key: {}}
 
         # Loop through boxes and apply preprocessing
         bboxes, extra_keys = [], {}
@@ -356,6 +356,6 @@ class DataFrameMetadata(MetadataDatasetWrapper):
         if key is None:
             raise KeyError(f"Unable to find key in example {example}")  # pragma: no cover
         elif key not in self.metadata.index:
-            return {"metadata": {}}
+            return {self.dest_key: {}}
 
         return {self.dest_key: self.metadata.loc[key].to_dict()}
