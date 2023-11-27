@@ -6,7 +6,7 @@ import pytest
 import torch
 from dicom_utils.container import DicomImageFileRecord
 
-from torch_dicom.preprocessing.crop import MinMaxCrop, ROICrop
+from torch_dicom.preprocessing.crop import MinMaxCrop, ROICrop, TileCrop
 
 
 class TestMinMaxCrop:
@@ -146,3 +146,76 @@ class TestROICrop:
         pd.set_option("mode.chained_assignment", None)
         result = crop(inp)
         assert result["img"].shape[-2:] == exp
+
+
+class TestTileCrop:
+    @pytest.fixture(params=[torch.float32, torch.int32])
+    def inp(self, request, height, width):
+        dtype = request.param
+        return torch.rand((1, 1, height, width)).to(dtype)
+
+    @pytest.mark.parametrize(
+        "height, width, crop_h, crop_w, overlap_h, overlap_w, exp",
+        [
+            (10, 10, 10, 10, 0, 0, torch.tensor([[0, 0, 10, 10]])),
+            (
+                10,
+                10,
+                5,
+                5,
+                0,
+                0,
+                torch.tensor(
+                    [
+                        [0, 0, 5, 5],
+                        [5, 0, 10, 5],
+                        [0, 5, 5, 10],
+                        [5, 5, 10, 10],
+                    ]
+                ),
+            ),
+            (
+                10,
+                10,
+                5,
+                5,
+                0.2,
+                0.2,
+                torch.tensor(
+                    [
+                        [0, 0, 5, 5],
+                        [4, 0, 9, 5],
+                        [5, 0, 10, 5],
+                        [0, 4, 5, 9],
+                        [4, 4, 9, 9],
+                        [5, 4, 10, 9],
+                        [0, 5, 5, 10],
+                        [4, 5, 9, 10],
+                        [5, 5, 10, 10],
+                    ]
+                ),
+            ),
+        ],
+    )
+    def test_get_bounds(self, inp, crop_h, crop_w, overlap_h, overlap_w, exp):
+        crop = TileCrop(size=(crop_h, crop_w), overlap=(overlap_h, overlap_w))
+        bounds = crop.get_bounds(inp)
+        assert torch.allclose(bounds, exp)
+
+    @pytest.mark.parametrize(
+        "height, width, crop_h, crop_w, overlap_h, overlap_w, exp",
+        [
+            (10, 10, 10, 10, 0, 0, 1),
+            (10, 10, 5, 5, 0, 0, 4),
+            (10, 10, 5, 5, 0.2, 0.2, 9),
+        ],
+    )
+    def test_call(self, height, width, inp, crop_h, crop_w, overlap_h, overlap_w, exp):
+        crop = TileCrop(size=(crop_h, crop_w), overlap=(overlap_h, overlap_w))
+
+        example = {"img": inp, "img_size": torch.tensor([height, width])}
+        result = crop(example)
+        act = result["img"]
+
+        assert act.shape[-2:] == (crop_h, crop_w)
+        assert act.shape[-3] == exp
