@@ -383,13 +383,30 @@ class ROICrop(Crop):
             raise ValueError(f"Expected input to have at exactly 3 dimensions, got {x.ndim}")
 
         H, W = x.shape[-2:]
+        H_min, W_min = self.min_size
 
         if sopuid not in self.df.index:
-            # Select a random crop of size `self.min_size` anywhere in the image
-            h_start = torch.randint(0, H - self.min_size[0] + 1, (1,))
-            w_start = torch.randint(0, W - self.min_size[1] + 1, (1,))
-            h_end = h_start + self.min_size[0]
-            w_end = w_start + self.min_size[1]
+            non_zero_indices = torch.nonzero(x)
+            if non_zero_indices.numel():
+                # Try to find a crop that contains a nonzero pixel
+                center = non_zero_indices[torch.randint(0, len(non_zero_indices), (1,))]
+                center_y, center_x = tuple(int(t.item()) for t in center[0, -2:])
+                h_start = max(0, center_y - H_min // 2)
+                h_end = min(H, h_start + H_min)
+                w_start = max(0, center_x - W_min // 2)
+                w_end = min(W, w_start + W_min)
+            else:
+                # Choose a random crop
+                h_start = torch.randint(0, H - H_min + 1, (1,))
+                h_end = h_start + H_min
+                w_start = torch.randint(0, W - W_min + 1, (1,))
+                w_end = w_start + W_min
+
+            # Adjust the start and end if necessary
+            if h_end - h_start < H_min:
+                h_start = H - H_min
+            if w_end - w_start < W_min:
+                w_start = W - W_min
 
             assert h_end <= H
             assert w_end <= W
@@ -407,11 +424,11 @@ class ROICrop(Crop):
                 match = matches
                 x1, y1, x2, y2 = match.values
             # If the ROI is smaller than self.min_size, expand the bounds
-            if (x2 - x1) < self.min_size[0] or (y2 - y1) < self.min_size[1]:
-                x1 = max(0, x1 - (self.min_size[0] - (x2 - x1)) // 2)
-                y1 = max(0, y1 - (self.min_size[1] - (y2 - y1)) // 2)
-                x2 = min(W, x1 + self.min_size[0])
-                y2 = min(H, y1 + self.min_size[1])
+            if (x2 - x1) < H_min or (y2 - y1) < W_min:
+                x1 = max(0, x1 - (H_min - (x2 - x1)) // 2)
+                y1 = max(0, y1 - (W_min - (y2 - y1)) // 2)
+                x2 = min(W, x1 + H_min)
+                y2 = min(H, y1 + W_min)
             # In xyxy format
             bounds = torch.tensor([x1, y1, x2, y2])
 
