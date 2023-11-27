@@ -418,6 +418,8 @@ class ROICrop(Crop):
         else:
             # Get matches for sopuid in self.df
             matches = self.df.loc[sopuid]
+            matches = matches[["x1", "y1", "x2", "y2"]]
+
             # If there are multiple matches, choose one ROI at random
             if isinstance(matches, pd.DataFrame) and len(matches) > 1:
                 match = matches.sample(n=1)
@@ -427,10 +429,20 @@ class ROICrop(Crop):
                 x1, y1, x2, y2 = match.values
             # If the ROI is smaller than self.min_size, expand the bounds
             if (x2 - x1) < H_min or (y2 - y1) < W_min:
-                x1 = max(0, x1 - (H_min - (x2 - x1)) // 2)
-                y1 = max(0, y1 - (W_min - (y2 - y1)) // 2)
+                # Calculate the amount of expansion needed in each direction
+                expand_x = H_min - (x2 - x1)
+                expand_y = W_min - (y2 - y1)
+
+                # Generate random jitter for x and y within the expansion bounds
+                jitter_x = torch.randint(0, expand_x + 1, (1,))
+                jitter_y = torch.randint(0, expand_y + 1, (1,))
+
+                # Apply the jitter to the ROI bounds, ensuring they stay within the image bounds
+                x1 = max(0, x1 - jitter_x)
+                y1 = max(0, y1 - jitter_y)
                 x2 = min(W, x1 + H_min)
                 y2 = min(H, y1 + W_min)
+
             # In xyxy format
             bounds = torch.tensor([x1, y1, x2, y2])
 
