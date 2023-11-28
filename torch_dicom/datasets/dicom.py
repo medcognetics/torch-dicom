@@ -8,7 +8,6 @@ from itertools import islice
 from pathlib import Path
 from typing import (
     Any,
-    Callable,
     Dict,
     Final,
     Iterable,
@@ -36,7 +35,7 @@ from torch.utils.data import IterableDataset, default_collate, get_worker_info
 from torch.utils.data._utils.collate import collate, default_collate_fn_map
 from torchvision.tv_tensors import Image, Video
 
-from .helpers import normalize_pixels
+from .helpers import SupportsTransform, Transform, normalize_pixels
 from .path import PathDataset, PathInput
 
 
@@ -191,7 +190,7 @@ def slice_iterable_for_multiprocessing(iterable: Iterable[Any]) -> Iterable[Any]
         return iterable
 
 
-class DicomInput(IterableDataset):
+class DicomInput(IterableDataset, SupportsTransform):
     r"""Dataset that iterates over DICOM objects and yields a metadata dictionary.
 
     Args:
@@ -213,7 +212,7 @@ class DicomInput(IterableDataset):
         self,
         dicoms: Iterable[Dicom],
         img_size: Optional[Tuple[int, int]] = None,
-        transform: Optional[Callable] = None,
+        transform: Optional[Transform] = None,
         skip_errors: bool = False,
         volume_handler: VolumeHandler = ReduceVolume(),
         normalize: bool = True,
@@ -241,7 +240,7 @@ class DicomInput(IterableDataset):
                 yield self.load_example(
                     dcm,
                     self.img_size,
-                    self.transform,
+                    self.apply_transform,
                     self.volume_handler,
                     self.normalize,
                     self.voi_lut,
@@ -259,7 +258,7 @@ class DicomInput(IterableDataset):
         cls,
         dcm: Dicom,
         img_size: Optional[Tuple[int, int]],
-        transform: Optional[Callable] = None,
+        transform: Optional[Transform] = None,
         volume_handler: VolumeHandler = ReduceVolume(),
         normalize: bool = True,
         voi_lut: bool = True,
@@ -420,7 +419,7 @@ class DicomPathInput(DicomInput, PathInput):
         self,
         paths: Iterable[Path],
         img_size: Optional[Tuple[int, int]] = None,
-        transform: Optional[Callable] = None,
+        transform: Optional[Transform] = None,
         skip_errors: bool = False,
         volume_handler: VolumeHandler = ReduceVolume(),
         normalize: bool = True,
@@ -443,7 +442,7 @@ class DicomPathInput(DicomInput, PathInput):
         cls,
         path: Path,
         img_size: Optional[Tuple[int, int]],
-        transform: Optional[Callable] = None,
+        transform: Optional[Transform] = None,
         volume_handler: VolumeHandler = ReduceVolume(),
         normalize: bool = True,
         voi_lut: bool = True,
@@ -458,7 +457,7 @@ class DicomPathInput(DicomInput, PathInput):
         return cast(DicomExample, example)
 
 
-class DicomPathDataset(PathDataset):
+class DicomPathDataset(PathDataset, SupportsTransform):
     r"""Dataset that reads DICOM files and returns a metadata dictionary. This dataset class scans over all input
     paths during instantiation. This takes time, but allows a dataset length to be determined.
     If you want to avoid this, use :class:`DicomPathInput` instead. This class is best suited for training.
@@ -484,7 +483,7 @@ class DicomPathDataset(PathDataset):
         self,
         paths: Iterator[Path],
         img_size: Optional[Tuple[int, int]] = None,
-        transform: Optional[Callable] = None,
+        transform: Optional[Transform] = None,
         volume_handler: VolumeHandler = ReduceVolume(),
         normalize: bool = True,
         voi_lut: bool = True,
@@ -510,7 +509,7 @@ class DicomPathDataset(PathDataset):
         return self.load_example(
             path,
             self.img_size,
-            self.transform,
+            self.apply_transform,
             self.volume_handler,
             self.normalize,
             self.voi_lut,
@@ -523,7 +522,7 @@ class DicomPathDataset(PathDataset):
             yield self.load_example(
                 path,
                 self.img_size,
-                self.transform,
+                self.apply_transform,
                 self.volume_handler,
                 self.normalize,
                 self.voi_lut,
@@ -536,7 +535,7 @@ class DicomPathDataset(PathDataset):
         cls,
         path: Path,
         img_size: Optional[Tuple[int, int]],
-        transform: Optional[Callable] = None,
+        transform: Optional[Transform] = None,
         volume_handler: VolumeHandler = ReduceVolume(),
         normalize: bool = True,
         voi_lut: bool = True,

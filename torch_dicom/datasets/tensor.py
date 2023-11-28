@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 import logging
 from pathlib import Path
-from typing import Callable, Iterable, Iterator, Optional, Tuple, TypedDict, cast
+from typing import Iterable, Iterator, Optional, Tuple, TypedDict, cast
 
 import torch
 import torch.nn.functional as F
@@ -11,7 +11,7 @@ from torch import Tensor
 from torch.utils.data import IterableDataset
 
 from .dicom import filter_collatable_types, slice_iterable_for_multiprocessing
-from .helpers import normalize_pixels
+from .helpers import SupportsTransform, Transform, normalize_pixels
 from .path import PathDataset, PathInput
 
 
@@ -21,7 +21,7 @@ class TensorExample(TypedDict):
     path: Optional[Path]
 
 
-class TensorInput(IterableDataset):
+class TensorInput(IterableDataset, SupportsTransform):
     r"""Dataset that iterates over Tensor objects and yields a metadata dictionary.
 
     Args:
@@ -37,7 +37,7 @@ class TensorInput(IterableDataset):
         self,
         tensors: Iterable[Tensor],
         img_size: Optional[Tuple[int, int]] = None,
-        transform: Optional[Callable] = None,
+        transform: Optional[Transform] = None,
         skip_errors: bool = False,
         volume_handler: VolumeHandler = SliceAtLocation(),
         normalize: bool = False,
@@ -56,7 +56,7 @@ class TensorInput(IterableDataset):
         iterable = slice_iterable_for_multiprocessing(self.tensors)
         for t in iterable:
             try:
-                yield self.load_example(t, self.img_size, self.transform, self.normalize)
+                yield self.load_example(t, self.img_size, self.apply_transform, self.normalize)
             except Exception as ex:
                 if not self.skip_errors:
                     raise
@@ -102,7 +102,7 @@ class TensorInput(IterableDataset):
         cls,
         pixels: Tensor,
         img_size: Optional[Tuple[int, int]],
-        transform: Optional[Callable] = None,
+        transform: Optional[Transform] = None,
         normalize: bool = False,
     ) -> TensorExample:
         r"""Loads a single Tensor example.
@@ -125,7 +125,7 @@ class TensorInput(IterableDataset):
         return cast(TensorExample, result)
 
 
-class TensorPathInput(TensorInput, PathInput):
+class TensorPathInput(TensorInput, PathInput, SupportsTransform):
     r"""Dataset that iterates over paths to Tensor files and yields a metadata dictionary.
 
     Args:
@@ -140,7 +140,7 @@ class TensorPathInput(TensorInput, PathInput):
         self,
         paths: Iterable[Path],
         img_size: Optional[Tuple[int, int]] = None,
-        transform: Optional[Callable] = None,
+        transform: Optional[Transform] = None,
         skip_errors: bool = False,
         normalize: bool = False,
     ):
@@ -155,7 +155,7 @@ class TensorPathInput(TensorInput, PathInput):
         cls,
         path: Path,
         img_size: Optional[Tuple[int, int]],
-        transform: Optional[Callable] = None,
+        transform: Optional[Transform] = None,
         normalize: bool = False,
     ) -> TensorExample:
         if not isinstance(path, Path):
@@ -166,7 +166,7 @@ class TensorPathInput(TensorInput, PathInput):
         return cast(TensorExample, example)
 
 
-class TensorPathDataset(PathDataset):
+class TensorPathDataset(PathDataset, SupportsTransform):
     r"""Dataset that reads Tensor files and returns a metadata dictionary. This dataset class scans over all input
     paths during instantiation. This takes time, but allows a dataset length to be determined.
     If you want to avoid this, use :class:`TensorPathInput` instead. This class is best suited for training.
@@ -183,7 +183,7 @@ class TensorPathDataset(PathDataset):
         self,
         paths: Iterator[Path],
         img_size: Optional[Tuple[int, int]] = None,
-        transform: Optional[Callable] = None,
+        transform: Optional[Transform] = None,
         normalize: bool = False,
     ):
         super().__init__(paths)
@@ -198,8 +198,8 @@ class TensorPathDataset(PathDataset):
         if not 0 <= idx <= len(self):
             raise IndexError(f"Index {idx} is invalid for dataset length {len(self)}")
         path = self.files[idx]
-        return TensorPathInput.load_example(path, self.img_size, self.transform, self.normalize)
+        return TensorPathInput.load_example(path, self.img_size, self.apply_transform, self.normalize)
 
     def __iter__(self) -> Iterator[TensorExample]:
         for path in self.files:
-            yield TensorPathInput.load_example(path, self.img_size, self.transform, self.normalize)
+            yield TensorPathInput.load_example(path, self.img_size, self.apply_transform, self.normalize)
