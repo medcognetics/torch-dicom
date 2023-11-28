@@ -11,6 +11,7 @@ from torchvision.tv_tensors import BoundingBoxes, BoundingBoxFormat
 
 from ..preprocessing.crop import MinMaxCrop
 from ..preprocessing.resize import Resize
+from .helpers import SupportsTransform, Transform
 
 
 def get_sopuid_key_from_example(example: Dict[str, Any]) -> Optional[Any]:
@@ -38,13 +39,29 @@ def get_sopuid_key_from_example(example: Dict[str, Any]) -> Optional[Any]:
     return key
 
 
-class MetadataInputWrapper(IterableDataset, ABC):
+def _disable_wrapped_transform(wrapper: Union["MetadataDatasetWrapper", "MetadataInputWrapper"]) -> None:
+    r"""Disables the transform in the wrapped dataset and attaches the transform to the wrapper."""
+    if isinstance(wrapper.dataset, SupportsTransform):
+        wrapper.transform = wrapper.dataset.transform
+        wrapper.dataset.transform = None
+    else:
+        wrapper.transform = None
+
+
+def _assert_wrapped_transform_disabled(wrapper: Union["MetadataDatasetWrapper", "MetadataInputWrapper"]) -> None:
+    assert (
+        not isinstance(wrapper.dataset, SupportsTransform) or wrapper.dataset.transform is None
+    ), "Transform in wrapped dataset must be disabled"
+
+
+class MetadataInputWrapper(IterableDataset, ABC, SupportsTransform):
     r"""Wraps an existing input that returns a dictionary of items and adds metadata from a file.
 
     Args:
         dataset: Iterable dataset to wrap.
         metadata: Path to a file with metadata.
     """
+    transform: Optional[Transform]
 
     def __init__(self, dataset: Union[Dataset, IterableDataset], metadata: Path):
         self.dataset = dataset
@@ -53,6 +70,7 @@ class MetadataInputWrapper(IterableDataset, ABC):
         self.metadata_path = Path(metadata)
         # Trigger loading of metadata
         self.metadata
+        _disable_wrapped_transform(self)
 
     @abstractclassmethod
     def load_metadata(cls, metadata: Path) -> Any:
@@ -73,6 +91,7 @@ class MetadataInputWrapper(IterableDataset, ABC):
         return self.load_metadata(self.metadata_path)
 
     def __iter__(self) -> Iterator[Dict[str, Any]]:
+        _assert_wrapped_transform_disabled(self)
         for example in self.dataset:
             if not isinstance(example, dict):
                 raise TypeError(
@@ -80,19 +99,25 @@ class MetadataInputWrapper(IterableDataset, ABC):
                 )  # pragma: no cover
             metadata = self.get_metadata(example)
             example.update(metadata)
+
+            # Apply transform
+            if self.transform is not None:
+                example = self.apply_transform(example)
+
             yield example
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(dataset={self.dataset}, metadata={self.metadata_path})"
 
 
-class MetadataDatasetWrapper(Dataset, ABC):
+class MetadataDatasetWrapper(Dataset, ABC, SupportsTransform):
     r"""Wraps an existing dataset that returns a dictionary of items and adds metadata from a file.
 
     Args:
         dataset: Dataset to wrap.
         metadata: Path to a file with metadata.
     """
+    transform: Optional[Transform]
 
     def __init__(self, dataset: Dataset, metadata: Path):
         self.dataset = dataset
@@ -101,6 +126,7 @@ class MetadataDatasetWrapper(Dataset, ABC):
         self.metadata_path = Path(metadata)
         # Trigger loading of metadata
         self.metadata
+        _disable_wrapped_transform(self)
 
     @abstractclassmethod
     def load_metadata(cls, metadata: Path) -> Any:
@@ -124,6 +150,7 @@ class MetadataDatasetWrapper(Dataset, ABC):
         return len(cast(Sized, self.dataset))
 
     def __getitem__(self, idx: int) -> Dict[str, Any]:
+        _assert_wrapped_transform_disabled(self)
         example = self.dataset[idx]
         if not isinstance(example, dict):
             raise TypeError(
@@ -131,6 +158,11 @@ class MetadataDatasetWrapper(Dataset, ABC):
             )  # pragma: no cover
         metadata = self.get_metadata(example)
         example.update(metadata)
+
+        # Apply transform
+        if self.transform is not None:
+            example = self.apply_transform(example)
+
         return example
 
     def __iter__(self) -> Iterator[Dict[str, Any]]:
@@ -159,6 +191,7 @@ class PreprocessingConfigMetadata(MetadataDatasetWrapper):
     def __init__(self, dataset: Dataset, dest_key: str = "preprocessing"):
         self.dataset = dataset
         self.dest_key = dest_key
+        _disable_wrapped_transform(self)
 
     @classmethod
     def load_metadata(cls, metadata: Path) -> Any:
