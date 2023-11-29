@@ -3,7 +3,7 @@
 
 from .chain import AggregateDataset, AggregateInput
 from .dicom import DUMMY_PATH, DicomExample, DicomInput, DicomPathDataset, DicomPathInput, collate_fn, uncollate
-from .image import ImageInput, ImagePathDataset, ImagePathInput
+from .image import ImageExample, ImageInput, ImagePathDataset, ImagePathInput
 from .metadata import (
     BoundingBoxMetadata,
     DataFrameMetadata,
@@ -39,4 +39,5 @@ __all__ = [
     "ImageInput",
     "ImagePathDataset",
     "ImagePathInput",
+    "ImageExample",
 ]
