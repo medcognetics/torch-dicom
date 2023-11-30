@@ -217,6 +217,7 @@ class TestBoundingBoxMetadata:
 
     @pytest.fixture(scope="class")
     def sopuids_without_boxes(self, dicoms):
+        # Every odd index has no boxes
         return [dicom.SOPInstanceUID for dicom in dicoms[1::2]]
 
     def test_init(self, dataset: Dataset, box_data):
