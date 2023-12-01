@@ -108,8 +108,6 @@ class PreprocessingPipeline:
 
     def __iter__(self) -> Iterator[Dict[str, Any]]:
         for batch in self.dataloader:
-            batch = self.apply_transforms(batch)
-
             for example in uncollate(batch):
                 # Update the DICOM object
                 dicom = example["dicom"]
@@ -176,6 +174,7 @@ class PreprocessingPipeline:
             rescale=should_adjust_image,
             volume_handler=self.volume_handler,
             skip_errors=True,
+            transform=self.apply_transforms,
         )
         return DataLoader(
             ds,

@@ -229,8 +229,10 @@ class Resize:
         Returns:
             A tensor of shape :math:`(N, 2)` containing the adjusted coordinates.
         """
-        H, W = resize_config["orig_h"], resize_config["orig_w"]
-        H_new, W_new = resize_config["resized_h"], resize_config["resized_w"]
+        H = torch.as_tensor(resize_config["orig_h"], dtype=torch.long, device=coords.device)
+        W = torch.as_tensor(resize_config["orig_w"], dtype=torch.long, device=coords.device)
+        H_new = torch.as_tensor(resize_config["resized_h"], dtype=torch.long, device=coords.device)
+        W_new = torch.as_tensor(resize_config["resized_w"], dtype=torch.long, device=coords.device)
 
         # these keys are optional
         pad_top = resize_config.get("padding_top", None)
