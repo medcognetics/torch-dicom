@@ -167,6 +167,14 @@ class TestPreprocessingConfigMetadata:
         assert "preprocessing" in metadata_dict
         assert metadata_dict["preprocessing"]
 
+    def test_dest_key(self, dataset: Dataset, metadata: Path):
+        dest_key = "new_key"
+        wrapper = PreprocessingConfigMetadata(dataset, dest_key=dest_key)
+        example = wrapper[0]
+        metadata_dict = wrapper.get_metadata(example)
+        assert isinstance(metadata_dict, dict)
+        assert metadata_dict[dest_key]
+
 
 class TestBoundingBoxMetadata:
     @pytest.fixture(scope="class")
@@ -242,6 +250,14 @@ class TestBoundingBoxMetadata:
         assert isinstance(example, dict)
         assert example["bounding_boxes"] == {}
 
+    def test_dest_key(self, dataset: Dataset, box_data):
+        dest_key = "new_key"
+        wrapper = BoundingBoxMetadata(dataset, box_data, dest_key=dest_key)
+        for i in range(2):
+            example = wrapper[i]
+            assert dest_key in example
+            assert isinstance(example[dest_key], dict)
+
 
 class TestDataFrameMetadata:
     @pytest.fixture(scope="class")
@@ -297,3 +313,10 @@ class TestDataFrameMetadata:
         wrapper = DataFrameMetadata(dataset, metadata)
         example = wrapper[1]
         assert example["metadata"] == {}
+
+    def test_dest_key(self, dataset: Dataset, metadata: Path):
+        dest_key = "custom_key"
+        wrapper = DataFrameMetadata(dataset, metadata, dest_key=dest_key)
+        for i in range(2):
+            example = wrapper[i]
+            assert isinstance(example[dest_key], dict)
