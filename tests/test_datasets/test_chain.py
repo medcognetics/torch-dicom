@@ -5,7 +5,7 @@ from typing import cast
 
 from torch.utils.data import DataLoader
 
-from torch_dicom.datasets import DicomExample, TensorExample, collate_fn
+from torch_dicom.datasets import DicomExample, ImageExample, TensorExample, collate_fn
 from torch_dicom.datasets.chain import AggregateDataset, AggregateInput
 
 
@@ -36,6 +36,16 @@ class TestAggregateInput:
         expected = tensors * 2
         assert len(actual) == len(expected)
         assert all([(act == exp).all() for act, exp in zip(actual, expected)])
+
+    def test_iter_images(self, images, image_files):
+        ds = AggregateInput(
+            images=iter(images),
+            image_paths=iter(image_files),
+        )
+        contents = list(ds)
+        actual = [cast(ImageExample, item)["img"] for item in contents]
+        expected = images * 2
+        assert len(actual) == len(expected)
 
     def test_dataloader(self, dicoms, file_iterator):
         ds = AggregateInput(
