@@ -167,6 +167,14 @@ class TestPreprocessingConfigMetadata:
         assert "preprocessing" in metadata_dict
         assert metadata_dict["preprocessing"]
 
+    def test_dest_key(self, dataset: Dataset, metadata: Path):
+        dest_key = "new_key"
+        wrapper = PreprocessingConfigMetadata(dataset, dest_key=dest_key)
+        example = wrapper[0]
+        metadata_dict = wrapper.get_metadata(example)
+        assert isinstance(metadata_dict, dict)
+        assert metadata_dict[dest_key]
+
 
 class TestBoundingBoxMetadata:
     @pytest.fixture(scope="class")
@@ -215,6 +223,11 @@ class TestBoundingBoxMetadata:
         boxes_df.to_csv(path, index=False)
         return path
 
+    @pytest.fixture(scope="class")
+    def sopuids_without_boxes(self, dicoms):
+        # Every odd index has no boxes
+        return [dicom.SOPInstanceUID for dicom in dicoms[1::2]]
+
     def test_init(self, dataset: Dataset, box_data):
         wrapper = BoundingBoxMetadata(dataset, box_data)
         assert wrapper.dataset == dataset
@@ -224,9 +237,14 @@ class TestBoundingBoxMetadata:
         wrapper = BoundingBoxMetadata(dataset, box_data)
         assert isinstance(repr(wrapper), str)
 
-    def test_getitem_with_trace(self, dataset: Dataset, box_data):
+    def test_getitem_with_trace(self, dataset: Dataset, box_data, sopuids_without_boxes):
         wrapper = BoundingBoxMetadata(dataset, box_data, extra_keys=["extra"])
-        example = wrapper[0]
+        for example in wrapper:
+            if example["record"].SOPInstanceUID not in sopuids_without_boxes:
+                break
+        else:
+            raise AssertionError("No example with boxes found")
+
         assert isinstance(example, dict)
         boxes = example["bounding_boxes"]["boxes"]
         assert isinstance(boxes, BoundingBoxes)
@@ -236,11 +254,24 @@ class TestBoundingBoxMetadata:
         assert 0 <= boxes[..., -1] <= 512
         assert example["bounding_boxes"]["extra"] == ["metadata"]
 
-    def test_getitem_without_trace(self, dataset: Dataset, box_data):
+    def test_getitem_without_trace(self, dataset: Dataset, box_data, sopuids_without_boxes):
         wrapper = BoundingBoxMetadata(dataset, box_data)
-        example = wrapper[1]
+        for example in wrapper:
+            if example["record"].SOPInstanceUID in sopuids_without_boxes:
+                break
+        else:
+            raise AssertionError("No example without boxes found")
+
         assert isinstance(example, dict)
         assert example["bounding_boxes"] == {}
+
+    def test_dest_key(self, dataset: Dataset, box_data):
+        dest_key = "new_key"
+        wrapper = BoundingBoxMetadata(dataset, box_data, dest_key=dest_key)
+        for i in range(2):
+            example = wrapper[i]
+            assert dest_key in example
+            assert isinstance(example[dest_key], dict)
 
 
 class TestDataFrameMetadata:
@@ -277,6 +308,10 @@ class TestDataFrameMetadata:
         boxes_df.to_csv(path, index=False)
         return path
 
+    @pytest.fixture(scope="class")
+    def sopuids_without_boxes(self, dicoms):
+        return [dicom.SOPInstanceUID for dicom in dicoms[1::2]]
+
     def test_init(self, dataset: Dataset, metadata):
         wrapper = DataFrameMetadata(dataset, metadata)
         assert wrapper.dataset == dataset
@@ -286,14 +321,29 @@ class TestDataFrameMetadata:
         wrapper = DataFrameMetadata(dataset, metadata)
         assert isinstance(repr(wrapper), str)
 
-    def test_getitem_with_metadata(self, dataset: Dataset, metadata: Path):
+    def test_getitem_with_metadata(self, dataset: Dataset, metadata: Path, sopuids_without_boxes):
         wrapper = DataFrameMetadata(dataset, metadata)
-        example = wrapper[0]
+        for example in wrapper:
+            if example["record"].SOPInstanceUID not in sopuids_without_boxes:
+                break
+        else:
+            raise AssertionError("No example with metadata found")
         assert isinstance(example["metadata"], dict)
         assert example["metadata"]["rows"] == 2048
         assert example["metadata"]["columns"] == 1536
 
-    def test_getitem_without_metadata(self, dataset: Dataset, metadata: Path):
+    def test_getitem_without_metadata(self, dataset: Dataset, metadata: Path, sopuids_without_boxes):
         wrapper = DataFrameMetadata(dataset, metadata)
-        example = wrapper[1]
+        for example in wrapper:
+            if example["record"].SOPInstanceUID in sopuids_without_boxes:
+                break
+        else:
+            raise AssertionError("No example without metadata found")
         assert example["metadata"] == {}
+
+    def test_dest_key(self, dataset: Dataset, metadata: Path):
+        dest_key = "custom_key"
+        wrapper = DataFrameMetadata(dataset, metadata, dest_key=dest_key)
+        for i in range(2):
+            example = wrapper[i]
+            assert isinstance(example[dest_key], dict)

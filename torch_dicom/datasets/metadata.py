@@ -148,15 +148,17 @@ class PreprocessingConfigMetadata(MetadataDatasetWrapper):
     by replacing the "images" directory with "metadata" and changing the file
     extension to ".json".
 
-    The loaded metadata is added to the example under the key "preprocessing".
+    The loaded metadata is added to the example under the key ``dest_key``.
 
     Args:
         dataset: Dataset to wrap.
         metadata: Path to directory of metadata JSON files.
+        dest_key: Key under which to add the metadata to the example.
     """
 
-    def __init__(self, dataset: Dataset):
+    def __init__(self, dataset: Dataset, dest_key: str = "preprocessing"):
         self.dataset = dataset
+        self.dest_key = dest_key
 
     @classmethod
     def load_metadata(cls, metadata: Path) -> Any:
@@ -188,7 +190,7 @@ class PreprocessingConfigMetadata(MetadataDatasetWrapper):
             raise KeyError(f"Unable to find path in example {example}")  # pragma: no cover
 
         path = Path(str(path).replace("images", "metadata")).with_suffix(".json")
-        return {"preprocessing": self.load_metadata(path)}
+        return {self.dest_key: self.load_metadata(path)}
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(dataset={self.dataset})"
@@ -204,7 +206,7 @@ class BoundingBoxMetadata(MetadataDatasetWrapper):
         * x2: x coordinate of the bottom right corner of the bounding box (absolute coordinates)
         * y2: y coordinate of the bottom right corner of the bounding box (absolute coordinates)
 
-    Bounding boxes are added to the example under the key "bounding_boxes". Subkeys for "boxes", and any ``extra_keys``
+    Bounding boxes are added to the example under the key ``dest_key``. Subkeys for "boxes", and any ``extra_keys``
     will be present. The bounding boxes will be :class:`torchvision.tv_tensors.BoundingBoxes` with format
     :class:`~torchvision.tv_tensors.BoundingBoxFormat.XYXY`. If preprocessing metadata is available, the box coordinates
     are transformed accordingly.
@@ -213,6 +215,7 @@ class BoundingBoxMetadata(MetadataDatasetWrapper):
         dataset: Dataset to wrap.
         metadata: Path to a file with metadata.
         extra_keys: List of extra keys to add to the example.
+        dest_key: Key under which to add the bounding boxes to the example.
 
     Shapes:
         * ``boxes`` - :math:`(N, 4)` where :math:`N` is the number of bounding boxes.
@@ -220,9 +223,12 @@ class BoundingBoxMetadata(MetadataDatasetWrapper):
     """
     metadata: pd.DataFrame
 
-    def __init__(self, dataset: Dataset, metadata: Path, extra_keys: Iterable[str] = []):
+    def __init__(
+        self, dataset: Dataset, metadata: Path, extra_keys: Iterable[str] = [], dest_key: str = "bounding_boxes"
+    ):
         super().__init__(dataset, metadata)
         self.extra_keys = extra_keys
+        self.dest_key = dest_key
 
     @classmethod
     def load_metadata(cls, metadata: Path) -> pd.DataFrame:
@@ -251,7 +257,7 @@ class BoundingBoxMetadata(MetadataDatasetWrapper):
         if key is None:
             raise KeyError(f"Unable to find key in example {example}")  # pragma: no cover
         elif key not in self.metadata.index:
-            return {"bounding_boxes": {}}
+            return {self.dest_key: {}}
 
         # Loop through boxes and apply preprocessing
         bboxes, extra_keys = [], {}
@@ -276,7 +282,7 @@ class BoundingBoxMetadata(MetadataDatasetWrapper):
         )
 
         return {
-            "bounding_boxes": {
+            self.dest_key: {
                 "boxes": bboxes,
                 **extra_keys,
             }
@@ -306,13 +312,18 @@ class BoundingBoxMetadata(MetadataDatasetWrapper):
 class DataFrameMetadata(MetadataDatasetWrapper):
     r"""Wraps an existing dataset that returns a dictionary of items and adds metadata from a file / DataFrame.
     The default implementation assumes that the metadata file is a CSV file indexed by a "SOPInstanceUID" column.
-    All columns are added to the example under the key "metadata".
+    All columns are added to the example under the key ``dest_key``.
 
     Args:
         dataset: Dataset to wrap.
         metadata: Path to a file with metadata.
+        dest_key: Key under which to add the metadata to the example.
     """
     metadata: pd.DataFrame
+
+    def __init__(self, dataset: Dataset, metadata: Path, dest_key: str = "metadata"):
+        super().__init__(dataset, metadata)
+        self.dest_key = dest_key
 
     @classmethod
     def load_metadata(cls, metadata: Path) -> pd.DataFrame:
@@ -345,6 +356,6 @@ class DataFrameMetadata(MetadataDatasetWrapper):
         if key is None:
             raise KeyError(f"Unable to find key in example {example}")  # pragma: no cover
         elif key not in self.metadata.index:
-            return {"metadata": {}}
+            return {self.dest_key: {}}
 
-        return {"metadata": self.metadata.loc[key].to_dict()}
+        return {self.dest_key: self.metadata.loc[key].to_dict()}
