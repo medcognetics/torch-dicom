@@ -22,6 +22,7 @@ class TestWeightedCSVSampler:
             {
                 "SOPInstanceUID": [p.stem for p in paths],
                 "value": [i % 2 for i in range(len(paths))],
+                "dummy": [i % 2 for i in range(len(paths))],
             }
         )
         df.to_csv(path, index=False)
