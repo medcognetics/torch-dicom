@@ -2,7 +2,8 @@
 # -*- coding: utf-8 -*-
 from copy import deepcopy
 from dataclasses import dataclass
-from typing import ClassVar
+from pathlib import Path
+from typing import Any, ClassVar, Dict, cast
 
 import pytest
 import torch
@@ -88,6 +89,27 @@ class TestCollate:
                 assert v.shape == (2, *batch[0][k].shape)
             else:
                 assert v == [batch[0][k], batch[1][k]]
+
+    def test_collate_nested_dicts(self):
+        batch = [
+            {"d1": {"d2": torch.rand(3)}},
+            {"d1": {"d2": torch.rand(3)}},
+        ]
+        collated = cast(Dict[str, Any], collate_fn(batch, False))
+        assert isinstance(collated, dict)
+        assert isinstance(collated["d1"], list)
+        assert len(collated["d1"]) == 2
+        assert isinstance(collated["d1"][0], dict)
+
+    @pytest.mark.parametrize("missing_value", [None, -1])
+    def test_collate_missing_values(self, missing_value):
+        batch = [
+            {"d1": Path("foo")},
+            {},
+        ]
+        collated = collate_fn(batch, False, missing_value=missing_value)
+        assert isinstance(collated, dict)
+        assert collated["d1"] == [Path("foo"), missing_value]
 
 
 class TestDicomInput:

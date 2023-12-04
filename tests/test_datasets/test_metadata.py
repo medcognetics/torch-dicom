@@ -8,7 +8,7 @@ from torch.utils.data import Dataset
 from torchvision.transforms.v2 import RandomHorizontalFlip
 from torchvision.tv_tensors import BoundingBoxes, BoundingBoxFormat
 
-from torch_dicom.datasets import DicomPathDataset
+from torch_dicom.datasets import DicomPathDataset, collate_fn
 from torch_dicom.datasets.metadata import (
     BoundingBoxMetadata,
     DataFrameMetadata,
@@ -351,6 +351,15 @@ class TestDataFrameMetadata:
         else:
             raise AssertionError("No example without metadata found")
         assert example["metadata"] == {}
+
+    def test_collate_fn(self, dataset: Dataset, metadata: Path):
+        wrapper = DataFrameMetadata(dataset, metadata)
+        batch = [wrapper[i] for i in range(len(wrapper))]
+        collated = collate_fn(batch, default_fallback=False)
+        assert isinstance(collated, dict)
+        assert "metadata" in collated
+        assert isinstance(collated["metadata"], list)
+        assert len(collated["metadata"]) == len(batch)
 
     def test_dest_key(self, dataset: Dataset, metadata: Path):
         dest_key = "custom_key"
