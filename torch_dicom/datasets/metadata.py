@@ -11,6 +11,7 @@ from torchvision.tv_tensors import BoundingBoxes, BoundingBoxFormat
 
 from ..preprocessing.crop import MinMaxCrop
 from ..preprocessing.resize import Resize
+from .helpers import SupportsTransform, Transform
 
 
 def get_sopuid_key_from_example(example: Dict[str, Any]) -> Optional[Any]:
@@ -38,13 +39,29 @@ def get_sopuid_key_from_example(example: Dict[str, Any]) -> Optional[Any]:
     return key
 
 
-class MetadataInputWrapper(IterableDataset, ABC):
+def _disable_wrapped_transform(wrapper: Union["MetadataDatasetWrapper", "MetadataInputWrapper"]) -> None:
+    r"""Disables the transform in the wrapped dataset and attaches the transform to the wrapper."""
+    if isinstance(wrapper.dataset, SupportsTransform):
+        wrapper.transform = wrapper.dataset.transform
+        wrapper.dataset.transform = None
+    else:
+        wrapper.transform = None
+
+
+def _assert_wrapped_transform_disabled(wrapper: Union["MetadataDatasetWrapper", "MetadataInputWrapper"]) -> None:
+    assert (
+        not isinstance(wrapper.dataset, SupportsTransform) or wrapper.dataset.transform is None
+    ), "Transform in wrapped dataset must be disabled"
+
+
+class MetadataInputWrapper(IterableDataset, ABC, SupportsTransform):
     r"""Wraps an existing input that returns a dictionary of items and adds metadata from a file.
 
     Args:
         dataset: Iterable dataset to wrap.
         metadata: Path to a file with metadata.
     """
+    transform: Optional[Transform]
 
     def __init__(self, dataset: Union[Dataset, IterableDataset], metadata: Path):
         self.dataset = dataset
@@ -53,6 +70,7 @@ class MetadataInputWrapper(IterableDataset, ABC):
         self.metadata_path = Path(metadata)
         # Trigger loading of metadata
         self.metadata
+        _disable_wrapped_transform(self)
 
     @abstractclassmethod
     def load_metadata(cls, metadata: Path) -> Any:
@@ -73,6 +91,7 @@ class MetadataInputWrapper(IterableDataset, ABC):
         return self.load_metadata(self.metadata_path)
 
     def __iter__(self) -> Iterator[Dict[str, Any]]:
+        _assert_wrapped_transform_disabled(self)
         for example in self.dataset:
             if not isinstance(example, dict):
                 raise TypeError(
@@ -80,19 +99,25 @@ class MetadataInputWrapper(IterableDataset, ABC):
                 )  # pragma: no cover
             metadata = self.get_metadata(example)
             example.update(metadata)
+
+            # Apply transform
+            if self.transform is not None:
+                example = self.apply_transform(example)
+
             yield example
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(dataset={self.dataset}, metadata={self.metadata_path})"
 
 
-class MetadataDatasetWrapper(Dataset, ABC):
+class MetadataDatasetWrapper(Dataset, ABC, SupportsTransform):
     r"""Wraps an existing dataset that returns a dictionary of items and adds metadata from a file.
 
     Args:
         dataset: Dataset to wrap.
         metadata: Path to a file with metadata.
     """
+    transform: Optional[Transform]
 
     def __init__(self, dataset: Dataset, metadata: Path):
         self.dataset = dataset
@@ -101,6 +126,7 @@ class MetadataDatasetWrapper(Dataset, ABC):
         self.metadata_path = Path(metadata)
         # Trigger loading of metadata
         self.metadata
+        _disable_wrapped_transform(self)
 
     @abstractclassmethod
     def load_metadata(cls, metadata: Path) -> Any:
@@ -124,6 +150,7 @@ class MetadataDatasetWrapper(Dataset, ABC):
         return len(cast(Sized, self.dataset))
 
     def __getitem__(self, idx: int) -> Dict[str, Any]:
+        _assert_wrapped_transform_disabled(self)
         example = self.dataset[idx]
         if not isinstance(example, dict):
             raise TypeError(
@@ -131,6 +158,11 @@ class MetadataDatasetWrapper(Dataset, ABC):
             )  # pragma: no cover
         metadata = self.get_metadata(example)
         example.update(metadata)
+
+        # Apply transform
+        if self.transform is not None:
+            example = self.apply_transform(example)
+
         return example
 
     def __iter__(self) -> Iterator[Dict[str, Any]]:
@@ -148,15 +180,18 @@ class PreprocessingConfigMetadata(MetadataDatasetWrapper):
     by replacing the "images" directory with "metadata" and changing the file
     extension to ".json".
 
-    The loaded metadata is added to the example under the key "preprocessing".
+    The loaded metadata is added to the example under the key ``dest_key``.
 
     Args:
         dataset: Dataset to wrap.
         metadata: Path to directory of metadata JSON files.
+        dest_key: Key under which to add the metadata to the example.
     """
 
-    def __init__(self, dataset: Dataset):
+    def __init__(self, dataset: Dataset, dest_key: str = "preprocessing"):
         self.dataset = dataset
+        self.dest_key = dest_key
+        _disable_wrapped_transform(self)
 
     @classmethod
     def load_metadata(cls, metadata: Path) -> Any:
@@ -188,7 +223,7 @@ class PreprocessingConfigMetadata(MetadataDatasetWrapper):
             raise KeyError(f"Unable to find path in example {example}")  # pragma: no cover
 
         path = Path(str(path).replace("images", "metadata")).with_suffix(".json")
-        return {"preprocessing": self.load_metadata(path)}
+        return {self.dest_key: self.load_metadata(path)}
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(dataset={self.dataset})"
@@ -204,7 +239,7 @@ class BoundingBoxMetadata(MetadataDatasetWrapper):
         * x2: x coordinate of the bottom right corner of the bounding box (absolute coordinates)
         * y2: y coordinate of the bottom right corner of the bounding box (absolute coordinates)
 
-    Bounding boxes are added to the example under the key "bounding_boxes". Subkeys for "boxes", and any ``extra_keys``
+    Bounding boxes are added to the example under the key ``dest_key``. Subkeys for "boxes", and any ``extra_keys``
     will be present. The bounding boxes will be :class:`torchvision.tv_tensors.BoundingBoxes` with format
     :class:`~torchvision.tv_tensors.BoundingBoxFormat.XYXY`. If preprocessing metadata is available, the box coordinates
     are transformed accordingly.
@@ -213,6 +248,7 @@ class BoundingBoxMetadata(MetadataDatasetWrapper):
         dataset: Dataset to wrap.
         metadata: Path to a file with metadata.
         extra_keys: List of extra keys to add to the example.
+        dest_key: Key under which to add the bounding boxes to the example.
 
     Shapes:
         * ``boxes`` - :math:`(N, 4)` where :math:`N` is the number of bounding boxes.
@@ -220,9 +256,12 @@ class BoundingBoxMetadata(MetadataDatasetWrapper):
     """
     metadata: pd.DataFrame
 
-    def __init__(self, dataset: Dataset, metadata: Path, extra_keys: Iterable[str] = []):
+    def __init__(
+        self, dataset: Dataset, metadata: Path, extra_keys: Iterable[str] = [], dest_key: str = "bounding_boxes"
+    ):
         super().__init__(dataset, metadata)
         self.extra_keys = extra_keys
+        self.dest_key = dest_key
 
     @classmethod
     def load_metadata(cls, metadata: Path) -> pd.DataFrame:
@@ -251,7 +290,7 @@ class BoundingBoxMetadata(MetadataDatasetWrapper):
         if key is None:
             raise KeyError(f"Unable to find key in example {example}")  # pragma: no cover
         elif key not in self.metadata.index:
-            return {"bounding_boxes": {}}
+            return {self.dest_key: {}}
 
         # Loop through boxes and apply preprocessing
         bboxes, extra_keys = [], {}
@@ -276,7 +315,7 @@ class BoundingBoxMetadata(MetadataDatasetWrapper):
         )
 
         return {
-            "bounding_boxes": {
+            self.dest_key: {
                 "boxes": bboxes,
                 **extra_keys,
             }
@@ -306,13 +345,18 @@ class BoundingBoxMetadata(MetadataDatasetWrapper):
 class DataFrameMetadata(MetadataDatasetWrapper):
     r"""Wraps an existing dataset that returns a dictionary of items and adds metadata from a file / DataFrame.
     The default implementation assumes that the metadata file is a CSV file indexed by a "SOPInstanceUID" column.
-    All columns are added to the example under the key "metadata".
+    All columns are added to the example under the key ``dest_key``.
 
     Args:
         dataset: Dataset to wrap.
         metadata: Path to a file with metadata.
+        dest_key: Key under which to add the metadata to the example.
     """
     metadata: pd.DataFrame
+
+    def __init__(self, dataset: Dataset, metadata: Path, dest_key: str = "metadata"):
+        super().__init__(dataset, metadata)
+        self.dest_key = dest_key
 
     @classmethod
     def load_metadata(cls, metadata: Path) -> pd.DataFrame:
@@ -345,6 +389,6 @@ class DataFrameMetadata(MetadataDatasetWrapper):
         if key is None:
             raise KeyError(f"Unable to find key in example {example}")  # pragma: no cover
         elif key not in self.metadata.index:
-            return {"metadata": {}}
+            return {self.dest_key: {}}
 
-        return {"metadata": self.metadata.loc[key].to_dict()}
+        return {self.dest_key: self.metadata.loc[key].to_dict()}

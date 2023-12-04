@@ -1,11 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import math
 import warnings
+from copy import copy
 from dataclasses import dataclass
 from functools import cached_property
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, Final, Optional, Tuple, TypeVar, Union, cast, overload
+from typing import TYPE_CHECKING, Any, Dict, Final, List, Optional, Tuple, TypeVar, Union, cast, overload
 
 import pandas as pd
 import torch
@@ -383,13 +385,30 @@ class ROICrop(Crop):
             raise ValueError(f"Expected input to have at exactly 3 dimensions, got {x.ndim}")
 
         H, W = x.shape[-2:]
+        H_min, W_min = self.min_size
 
         if sopuid not in self.df.index:
-            # Select a random crop of size `self.min_size` anywhere in the image
-            h_start = torch.randint(0, H - self.min_size[0] + 1, (1,))
-            w_start = torch.randint(0, W - self.min_size[1] + 1, (1,))
-            h_end = h_start + self.min_size[0]
-            w_end = w_start + self.min_size[1]
+            non_zero_indices = torch.nonzero(x)
+            if non_zero_indices.numel():
+                # Try to find a crop that contains a nonzero pixel
+                center = non_zero_indices[torch.randint(0, len(non_zero_indices), (1,))]
+                center_y, center_x = tuple(int(t.item()) for t in center[0, -2:])
+                h_start = max(0, center_y - H_min // 2)
+                h_end = min(H, h_start + H_min)
+                w_start = max(0, center_x - W_min // 2)
+                w_end = min(W, w_start + W_min)
+            else:
+                # Choose a random crop
+                h_start = torch.randint(0, H - H_min + 1, (1,))
+                h_end = h_start + H_min
+                w_start = torch.randint(0, W - W_min + 1, (1,))
+                w_end = w_start + W_min
+
+            # Adjust the start and end if necessary
+            if h_end - h_start < H_min:
+                h_start = H - H_min
+            if w_end - w_start < W_min:
+                w_start = W - W_min
 
             assert h_end <= H
             assert w_end <= W
@@ -399,6 +418,8 @@ class ROICrop(Crop):
         else:
             # Get matches for sopuid in self.df
             matches = self.df.loc[sopuid]
+            matches = matches[["x1", "y1", "x2", "y2"]]
+
             # If there are multiple matches, choose one ROI at random
             if isinstance(matches, pd.DataFrame) and len(matches) > 1:
                 match = matches.sample(n=1)
@@ -407,12 +428,124 @@ class ROICrop(Crop):
                 match = matches
                 x1, y1, x2, y2 = match.values
             # If the ROI is smaller than self.min_size, expand the bounds
-            if (x2 - x1) < self.min_size[0] or (y2 - y1) < self.min_size[1]:
-                x1 = max(0, x1 - (self.min_size[0] - (x2 - x1)) // 2)
-                y1 = max(0, y1 - (self.min_size[1] - (y2 - y1)) // 2)
-                x2 = min(W, x1 + self.min_size[0])
-                y2 = min(H, y1 + self.min_size[1])
+            if (x2 - x1) < H_min or (y2 - y1) < W_min:
+                # Calculate the amount of expansion needed in each direction
+                expand_x = H_min - (x2 - x1)
+                expand_y = W_min - (y2 - y1)
+
+                # Generate random jitter for x and y within the expansion bounds
+                jitter_x = torch.randint(0, expand_x + 1, (1,))
+                jitter_y = torch.randint(0, expand_y + 1, (1,))
+
+                # Apply the jitter to the ROI bounds, ensuring they stay within the image bounds
+                x1 = max(0, x1 - jitter_x)
+                y1 = max(0, y1 - jitter_y)
+                x2 = min(W, x1 + H_min)
+                y2 = min(H, y1 + W_min)
+
             # In xyxy format
             bounds = torch.tensor([x1, y1, x2, y2])
 
         return bounds
+
+
+@dataclass
+class TileCrop(Crop):
+    r"""Performs cropping of an image into tiles.
+
+    Note:
+        Because this transform creates multiple tiles, it should not be followed by other image transforms.
+        Additionally, :func:`apply_to_coords` and :func:`unapply_to_coords` will not work.
+
+    Args:
+        img_key: Key for the image in the example dict.
+
+        bounds_key: Key for the crop bounds in the example dict. The determined
+            crop bounds will be stored in this location.
+
+        img_dest_key: Key for the cropped image in the example dict. If None,
+            the cropped image will be stored in the same location as the original image.
+
+        size: Size of the tiles in the format (H, W).
+
+        overlap: Amount of overlap between tiles (in fractional units) in the format (H, W).
+
+    Shape:
+        - Input: :math:`(N, *, H, W)`
+        - Output: :math:`(N, *, D, H', W')`
+    """
+    size: Tuple[int, int] = (256, 256)
+    overlap: Tuple[float, float] = (0.2, 0.2)
+
+    def __call__(self, example: E) -> E:
+        # Get the tile bounds
+        img: Tensor = example["img"]
+        bounds = self.get_bounds(img)
+
+        # TODO: Consider adding crop metadata and fixing apply_to_coords / unapply_to_coords
+        # if it becomes necessary to invert the crops
+        # Apply each crop
+        images: List[Tensor] = [super(TileCrop, self).__call__(copy(example), b)["img"] for b in bounds]
+
+        # Stack into a new "depth" dimension
+        example["img"] = torch.stack(images, dim=-3)
+
+        return example
+
+    @torch.no_grad()
+    def get_bounds(self, x: Tensor) -> Tensor:
+        r"""Returns the crop bounds for the given image. Bounds are determined by
+        splitting the image into tiles of size `self.size` with overlap `self.overlap`.
+
+        Args:
+            x: Image tensor.
+
+        Shape:
+            - Input: :math:`(*, H, W)`
+            - Output: :math:`(N, 4)` where :math:`N` is the number of tiles.
+
+        Returns:
+            Absolute crop bounds in the format :math:`(x_1, y_1, x_2, y_2)`.
+        """
+        if x.ndim < 2:
+            raise ValueError(f"Expected input to have at least 2 dimensions, got {x.ndim}")
+        H, W = x.shape[-2:]
+        Hc, Wc = self.size
+
+        # Determine overlap in pixels
+        overlap_h = int(self.overlap[0] * Hc)
+        overlap_w = int(self.overlap[1] * Wc)
+
+        # Calculate the number of tiles in each dimension
+        num_tiles_h = math.ceil(H / (Hc - overlap_h))
+        num_tiles_w = math.ceil(W / (Wc - overlap_w))
+
+        # Calculate the starting points for each tile
+        start_h = (torch.arange(num_tiles_h) * (Hc - overlap_h)).clip(max=H - Hc)
+        start_w = (torch.arange(num_tiles_w) * (Wc - overlap_w)).clip(max=W - Wc)
+
+        # Create a grid of starting points
+        start_grid_h, start_grid_w = torch.meshgrid(start_h, start_w, indexing="ij")
+
+        # Calculate the ending points for each tile
+        end_grid_h = start_grid_h + Hc
+        end_grid_w = start_grid_w + Wc
+
+        # Validate
+        assert torch.all((end_grid_h - start_grid_h) == Hc), "Height of all tiles should be equal to target crop height"
+        assert torch.all((end_grid_w - start_grid_w) == Wc), "Width of all tiles should be equal to target crop width"
+
+        # Stack the starting and ending points to create the bounds
+        bounds = torch.stack(
+            [start_grid_w.flatten(), start_grid_h.flatten(), end_grid_w.flatten(), end_grid_h.flatten()], dim=-1
+        )
+
+        return bounds
+
+    @staticmethod
+    def apply_to_coords(coords: Tensor, bounds: Tensor, clip: bool = True) -> Tensor:
+        raise NotImplementedError("TileCrop does not support apply_to_coords")
+
+    @staticmethod
+    def unapply_to_coords(coords: Tensor, bounds: Tensor, clip: bool = True) -> Tensor:
+        raise NotImplementedError("TileCrop does not support unapply_to_coords")

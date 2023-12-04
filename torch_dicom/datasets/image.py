@@ -1,6 +1,6 @@
 import logging
 from pathlib import Path
-from typing import Callable, Iterable, Iterator, Optional, Tuple, TypedDict, Union, cast
+from typing import Iterable, Iterator, Optional, Tuple, TypedDict, Union, cast
 
 import numpy as np
 import torch
@@ -12,7 +12,7 @@ from torch.utils.data import IterableDataset
 from torchvision.tv_tensors import Image as TVImage
 
 from .dicom import filter_collatable_types, slice_iterable_for_multiprocessing
-from .helpers import normalize_pixels
+from .helpers import SupportsTransform, Transform, normalize_pixels
 from .path import PathDataset, PathInput
 
 
@@ -94,7 +94,7 @@ def load_image(inp: Union[PILImage.Image, Path]) -> TVImage:
     return TVImage(img_tensor)
 
 
-class ImageInput(IterableDataset):
+class ImageInput(IterableDataset, SupportsTransform):
     r"""Dataset that iterates over PIL image objects and yields a metadata dictionary.
 
     Args:
@@ -110,7 +110,7 @@ class ImageInput(IterableDataset):
         self,
         images: Iterable[PILImage.Image],
         img_size: Optional[Tuple[int, int]] = None,
-        transform: Optional[Callable] = None,
+        transform: Optional[Transform] = None,
         skip_errors: bool = False,
         volume_handler: VolumeHandler = SliceAtLocation(),
         normalize: bool = False,
@@ -129,7 +129,7 @@ class ImageInput(IterableDataset):
         iterable = slice_iterable_for_multiprocessing(self.images)
         for t in iterable:
             try:
-                yield self.load_example(t, self.img_size, self.transform, self.normalize)
+                yield self.load_example(t, self.img_size, self.apply_transform, self.normalize)
             except Exception as ex:
                 if not self.skip_errors:
                     raise
@@ -177,7 +177,7 @@ class ImageInput(IterableDataset):
         cls,
         img: PILImage.Image,
         img_size: Optional[Tuple[int, int]],
-        transform: Optional[Callable] = None,
+        transform: Optional[Transform] = None,
         normalize: bool = False,
     ) -> ImageExample:
         r"""Loads a single Tensor example.
@@ -200,7 +200,7 @@ class ImageInput(IterableDataset):
         return cast(ImageExample, result)
 
 
-class ImagePathInput(ImageInput, PathInput):
+class ImagePathInput(ImageInput, PathInput, SupportsTransform):
     r"""Dataset that iterates over paths to image files and yields a metadata dictionary.
 
     Args:
@@ -215,7 +215,7 @@ class ImagePathInput(ImageInput, PathInput):
         self,
         paths: Iterable[Path],
         img_size: Optional[Tuple[int, int]] = None,
-        transform: Optional[Callable] = None,
+        transform: Optional[Transform] = None,
         skip_errors: bool = False,
         normalize: bool = False,
     ):
@@ -230,7 +230,7 @@ class ImagePathInput(ImageInput, PathInput):
         cls,
         path: Path,
         img_size: Optional[Tuple[int, int]],
-        transform: Optional[Callable] = None,
+        transform: Optional[Transform] = None,
         normalize: bool = False,
     ) -> ImageExample:
         if not isinstance(path, Path):
@@ -242,7 +242,7 @@ class ImagePathInput(ImageInput, PathInput):
         return cast(ImageExample, example)
 
 
-class ImagePathDataset(PathDataset):
+class ImagePathDataset(PathDataset, SupportsTransform):
     r"""Dataset that reads image files and returns a metadata dictionary. This dataset class scans over all input
     paths during instantiation. This takes time, but allows a dataset length to be determined.
     If you want to avoid this, use :class:`ImagePathInput` instead. This class is best suited for training.
@@ -259,7 +259,7 @@ class ImagePathDataset(PathDataset):
         self,
         paths: Iterator[Path],
         img_size: Optional[Tuple[int, int]] = None,
-        transform: Optional[Callable] = None,
+        transform: Optional[Transform] = None,
         normalize: bool = False,
     ):
         super().__init__(paths)
@@ -274,8 +274,8 @@ class ImagePathDataset(PathDataset):
         if not 0 <= idx <= len(self):
             raise IndexError(f"Index {idx} is invalid for dataset length {len(self)}")
         path = self.files[idx]
-        return ImagePathInput.load_example(path, self.img_size, self.transform, self.normalize)
+        return ImagePathInput.load_example(path, self.img_size, self.apply_transform, self.normalize)
 
     def __iter__(self) -> Iterator[ImageExample]:
         for path in self.files:
-            yield ImagePathInput.load_example(path, self.img_size, self.transform, self.normalize)
+            yield ImagePathInput.load_example(path, self.img_size, self.apply_transform, self.normalize)
