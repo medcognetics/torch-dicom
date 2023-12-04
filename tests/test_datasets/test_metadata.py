@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 import pytest
 from torch.utils.data import Dataset
+from torchvision.transforms.v2 import RandomHorizontalFlip
 from torchvision.tv_tensors import BoundingBoxes, BoundingBoxFormat
 
 from torch_dicom.datasets import DicomPathDataset
@@ -264,6 +265,16 @@ class TestBoundingBoxMetadata:
 
         assert isinstance(example, dict)
         assert example["bounding_boxes"] == {}
+
+    def test_transform(self, dataset: Dataset, box_data):
+        wrapper = BoundingBoxMetadata(dataset, box_data)
+        example1 = wrapper[0]
+        wrapper.transform = RandomHorizontalFlip(1.0)
+        example2 = wrapper[0]
+
+        boxes1 = example1["bounding_boxes"]["boxes"]
+        boxes2 = example2["bounding_boxes"]["boxes"]
+        assert not (boxes1 == boxes2).all()
 
     def test_dest_key(self, dataset: Dataset, box_data):
         dest_key = "new_key"
