@@ -56,8 +56,8 @@ class WeightedCSVSampler(WeightedRandomSampler):
         # Sort the dataframe by SOPInstanceUID
         df = df.loc[sop_uids]
 
-        # Normalize weights within each group. Only include non-zero weights in the total.
-        counts_per_group = df[df["weight"] > 0].groupby(colname).count().clip(lower=1)
+        # Normalize weights within each group.
+        counts_per_group = df.groupby(colname).count().clip(lower=1)
         for k in weights.keys():
             if k not in counts_per_group.index:
                 counts_per_group.loc[k] = 1
