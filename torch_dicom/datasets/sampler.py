@@ -185,11 +185,7 @@ class BatchComplementSampler(BatchSampler, ABC):
         # Otherwise select random examples from the list, preferring to not replace
         else:
             needs_replacement = len(full_complement) < self.complement_size
-            complement = np.random.choice(
-                full_complement, self.complement_size, replace=needs_replacement
-            ).tolist()  # type: ignore
+            complement = np.random.choice(full_complement, self.complement_size, replace=needs_replacement).tolist()
 
-        assert (
-            len(complement) == self.complement_size
-        ), f"Expected {self.complement_size} complements, got {len(complement)}"
+        assert (a := len(complement)) == (b := self.complement_size), f"Expected {b} complements, got {a}"
         return complement
