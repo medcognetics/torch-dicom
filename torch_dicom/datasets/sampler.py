@@ -4,6 +4,7 @@ from os import PathLike
 from pathlib import Path
 from typing import Dict, Iterable, Iterator, List, Optional, Sequence, Union
 
+import numpy as np
 import pandas as pd
 import torch
 from torch.utils.data import BatchSampler, Sampler, WeightedRandomSampler
@@ -139,3 +140,56 @@ class BatchComplementSampler(BatchSampler, ABC):
 
     def __len__(self) -> int:
         return len(self.sampler) * self.complement_size // self.batch_size  # type: ignore[arg-type]
+
+    def get_all_complementary_indices(self, idx: int, match_column: str) -> List[int]:
+        r"""Gets all indices of examples that have the same value for the given column as the input example.
+
+        Args:
+            idx: Index of the input example.
+            match_column: Name of the column to match on
+
+        Returns:
+            List of indices of all examples that have the same value for the given column as the input example,
+            excluding the input example itself.
+        """
+        # Get the SOP and value of the input
+        sop = self.metadata.iloc[idx].name
+        value = self.metadata.iloc[idx][match_column]
+
+        # Get random SOPUIDs of other examples for the same value, excluding the example itself
+        complementary_sops = self.metadata[self.metadata[match_column] == value].index.tolist()
+        complementary_sops.remove(sop)
+
+        # Convert SOPUIDs to indexes
+        return [self.metadata.index.get_loc(sop) for sop in complementary_sops]
+
+    def select_random_complement(self, idx: int, match_column: str) -> List[int]:
+        r"""Selects a random complement for the given example.
+        Possible complements are determined with :meth:`get_all_complementary_indices`, and a random subset is chosen.
+        Samples are drawn with replacement if there are not enough possible complements. If there are no complementary
+        examples, the input example is returned as the complement.
+
+        Args:
+            idx: Index of the input example.
+            match_column: Name of the column to match on
+
+        Returns:
+            List of indices of the selected complements. Length will be equal to ``self.complement_size``.
+        """
+        full_complement = self.get_all_complementary_indices(idx, match_column)
+
+        # If there are no other examples with the same value, return padded list with input example
+        if not full_complement:
+            complement = [idx] * self.complement_size
+
+        # Otherwise select random examples from the list, preferring to not replace
+        else:
+            needs_replacement = len(full_complement) < self.complement_size
+            complement = np.random.choice(
+                full_complement, self.complement_size, replace=needs_replacement
+            ).tolist()  # type: ignore
+
+        assert (
+            len(complement) == self.complement_size
+        ), f"Expected {self.complement_size} complements, got {len(complement)}"
+        return complement

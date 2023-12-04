@@ -2,7 +2,6 @@ import math
 from pathlib import Path
 from typing import List
 
-import numpy as np
 import pandas as pd
 import pytest
 import torch
@@ -56,7 +55,7 @@ class TestWeightedCSVSampler:
 class TestBatchComplementSampler:
     @pytest.fixture
     def paths(self):
-        return [Path(f"sop-{i}").with_suffix(".dcm") for i in range(10)]
+        return [Path(f"sop-{i}").with_suffix(".dcm") for i in range(9)]
 
     @pytest.fixture
     def batch_size(self):
@@ -86,24 +85,7 @@ class TestBatchComplementSampler:
                 return complement_size
 
             def find_complement(self, idx: int) -> List[int]:
-                # Get the SOP and study ID of the example
-                sop = self.metadata.iloc[idx].name
-                study_id = self.metadata.iloc[idx]["StudyInstanceUID"]
-
-                # Get random SOPUIDs of other examples in the same study, excluding the example itself
-                same_study_sops = self.metadata[self.metadata["StudyInstanceUID"] == study_id].index.tolist()
-                if not same_study_sops:
-                    return [idx] * self.complement_size
-                same_study_sops.remove(sop)
-                needs_replacement = len(same_study_sops) < self.complement_size
-                complement_sops = np.random.choice(
-                    same_study_sops, self.complement_size, replace=needs_replacement
-                ).tolist()  # type: ignore
-
-                # Convert SOPUIDs to indexes
-                complement_indexes = [self.metadata.index.get_loc(sop) for sop in complement_sops]
-
-                return complement_indexes
+                return self.select_random_complement(idx, "StudyInstanceUID")
 
         return BatchStudySampler(range(len(paths)), batch_size, metadata, paths)
 
@@ -117,3 +99,33 @@ class TestBatchComplementSampler:
         for i in output:
             assert isinstance(i, list)
             assert len(i) == batch_size
+
+    @pytest.mark.parametrize(
+        "idx, match_column, exp",
+        [
+            (0, "StudyInstanceUID", [1, 2, 3]),
+            (1, "StudyInstanceUID", [0, 2, 3]),
+            (4, "StudyInstanceUID", [5, 6, 7]),
+        ],
+    )
+    def test_get_all_complementary_indices(self, sampler, idx: int, match_column: str, exp: List[int]):
+        complementary_indices = sampler.get_all_complementary_indices(idx, match_column)
+        assert isinstance(complementary_indices, list)
+        assert all(isinstance(i, int) for i in complementary_indices)
+        assert complementary_indices == exp
+
+    @pytest.mark.parametrize(
+        "idx, match_column, exp",
+        [
+            (0, "StudyInstanceUID", [1, 2, 3]),
+            (1, "StudyInstanceUID", [0, 2, 3]),
+            (4, "StudyInstanceUID", [5, 6, 7]),
+            pytest.param(8, "StudyInstanceUID", [8], id="no-complement"),
+        ],
+    )
+    def test_select_random_complement(self, sampler, idx: int, match_column: str, exp: List[int]):
+        complement = sampler.select_random_complement(idx, match_column)
+        assert isinstance(complement, list)
+        assert all(isinstance(i, int) for i in complement)
+        assert len(complement) == sampler.complement_size
+        assert set(complement).issubset(set(exp))
