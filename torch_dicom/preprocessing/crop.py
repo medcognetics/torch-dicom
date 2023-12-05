@@ -319,12 +319,16 @@ class ROICrop(Crop):
         min_size: Minimum size of the crop in the format (H, W). If the ROI is smaller than this,
             the crop will be expanded to this size.
 
+        roi_expansion: Amount to expand the ROI by. This ensures that adequte context is included in the crop.
+            The default increases size by 50%
+
     Shape:
         - Input: :math:`(C, H, W)`
         - Output: :math:`(C, H', W')`
     """
     path: Path
     min_size: Tuple[int, int] = (256, 256)
+    roi_expansion: float = 1.5
 
     def __post_init__(self):
         super().__post_init__()
@@ -388,32 +392,28 @@ class ROICrop(Crop):
         H_min, W_min = self.min_size
 
         if sopuid not in self.df.index:
+            # Choose a random height and width for the crop
+            MAX_RANDOM_CROP_RATIO = 0.5
+            max_H = max(H_min, int(H * MAX_RANDOM_CROP_RATIO))
+            max_W = max(W_min, int(W * MAX_RANDOM_CROP_RATIO))
+            crop_H = int(torch.randint(H_min, max_H + 1, (1,)))
+            crop_W = int(torch.randint(W_min, max_W + 1, (1,)))
+
             non_zero_indices = torch.nonzero(x)
             if non_zero_indices.numel():
                 # Try to find a crop that contains a nonzero pixel
                 center = non_zero_indices[torch.randint(0, len(non_zero_indices), (1,))]
                 center_y, center_x = tuple(int(t.item()) for t in center[0, -2:])
-                h_start = max(0, center_y - H_min // 2)
-                h_end = min(H, h_start + H_min)
-                w_start = max(0, center_x - W_min // 2)
-                w_end = min(W, w_start + W_min)
+                y1 = max(0, center_y - crop_H // 2)
+                y2 = min(H, y1 + crop_H)
+                x1 = max(0, center_x - crop_W // 2)
+                x2 = min(W, x1 + crop_W)
             else:
                 # Choose a random crop
-                h_start = torch.randint(0, H - H_min + 1, (1,))
-                h_end = h_start + H_min
-                w_start = torch.randint(0, W - W_min + 1, (1,))
-                w_end = w_start + W_min
-
-            # Adjust the start and end if necessary
-            if h_end - h_start < H_min:
-                h_start = H - H_min
-            if w_end - w_start < W_min:
-                w_start = W - W_min
-
-            assert h_end <= H
-            assert w_end <= W
-            # In xyxy format
-            bounds = torch.tensor([w_start, h_start, w_end, h_end])
+                y1 = int(torch.randint(0, H - crop_H + 1, (1,)))
+                y2 = y1 + crop_H
+                x1 = int(torch.randint(0, W - crop_W + 1, (1,)))
+                x2 = x1 + crop_W
 
         else:
             # Get matches for sopuid in self.df
@@ -427,26 +427,139 @@ class ROICrop(Crop):
             else:
                 match = matches
                 x1, y1, x2, y2 = match.values
-            # If the ROI is smaller than self.min_size, expand the bounds
-            if (x2 - x1) < H_min or (y2 - y1) < W_min:
-                # Calculate the amount of expansion needed in each direction
-                expand_x = H_min - (x2 - x1)
-                expand_y = W_min - (y2 - y1)
 
-                # Generate random jitter for x and y within the expansion bounds
-                jitter_x = torch.randint(0, expand_x + 1, (1,))
-                jitter_y = torch.randint(0, expand_y + 1, (1,))
+            # Expand the ROI in each direction to increase context
+            x1, y1, x2, y2 = self.resize_roi(x1, y1, x2, y2, self.roi_expansion)
 
-                # Apply the jitter to the ROI bounds, ensuring they stay within the image bounds
-                x1 = max(0, x1 - jitter_x)
-                y1 = max(0, y1 - jitter_y)
-                x2 = min(W, x1 + H_min)
-                y2 = min(H, y1 + W_min)
+        # Change the aspect ratio to match that of self.min_size
+        x1, y1, x2, y2 = self.apply_aspect_ratio(x1, y1, x2, y2, H_min / W_min)
 
-            # In xyxy format
-            bounds = torch.tensor([x1, y1, x2, y2])
+        # If the ROI is smaller than self.min_size, expand the bounds
+        if (x2 - x1) < W_min or (y2 - y1) < H_min:
+            x1, y1, x2, y2 = self.resize_roi(x1, y1, x2, y2, (H_min, W_min))
+
+        # If the ROI is larger than the frame, contract the bounds
+        if (x2 - x1) > W or (y2 - y1) > H:
+            target_h = min(H, (y2 - y1))
+            target_w = min(W, (x2 - x1))
+            x2 = x1 + target_w
+            y2 = y1 + target_h
+            assert x2 - x1 <= W, f"Expected x2 - x1 <= W, got {x2 - x1}, {W}"
+            assert y2 - y1 <= H, f"Expected y2 - y1 <= H, got {y2 - y1}, {H}"
+
+        # Shift the ROI to be in the frame
+        x1, y1, x2, y2 = self.shift_roi_in_frame(x1, y1, x2, y2, H, W)
+
+        # In xyxy format
+        bounds = torch.tensor([x1, y1, x2, y2])
+        assert 0 <= x1 < x2 <= W, f"Expected x1 < x2 < W, got {x1}, {x2}, {W}"
+        assert 0 <= y1 < y2 <= H, f"Expected y1 < y2 < H, got {y1}, {y2}, {H}"
+        bounds[0].clamp_(min=0, max=W)
+        bounds[1].clamp_(min=0, max=H)
+        bounds[2].clamp_(min=int(bounds[0]) + 1, max=W)
+        bounds[3].clamp_(min=int(bounds[1]) + 1, max=H)
 
         return bounds
+
+    @staticmethod
+    def shift_roi_in_frame(x1: int, y1: int, x2: int, y2: int, height: int, width: int) -> Tuple[int, int, int, int]:
+        """
+        Shifts the region of interest (ROI) within the frame. If the ROI is outside of the frame, it is shifted
+        by the minimum amount necessary to be within the frame. Does not change the size of the ROI. If the ROI
+        is larger than the frame, there will still be a portion of the ROI outside of the frame.
+
+        Args:
+            x1: The x-coordinate of the top left corner of the ROI.
+            y1: The y-coordinate of the top left corner of the ROI.
+            x2: The x-coordinate of the bottom right corner of the ROI.
+            y2: The y-coordinate of the bottom right corner of the ROI.
+            height: The height of the frame.
+            width: The width of the frame.
+
+        Returns:
+            The coordinates of the shifted ROI in the format (x1, y1, x2, y2).
+        """
+        if x1 < 0:
+            x2 -= x1
+            x1 = 0
+        if y1 < 0:
+            y2 -= y1
+            y1 = 0
+        if x2 > width:
+            x1 = width - (x2 - x1)
+            x2 = width
+        if y2 > height:
+            y1 = height - (y2 - y1)
+            y2 = height
+        return x1, y1, x2, y2
+
+    @staticmethod
+    def resize_roi(
+        x1: int, y1: int, x2: int, y2: int, amount: Union[Tuple[int, int], float]
+    ) -> Tuple[int, int, int, int]:
+        """
+        Resizes the region of interest (ROI) by a specified amount. The center of the ROI is unchanged. Resized ROI coordinates
+        may lie outside of the frame.
+
+        Args:
+            x1: The x-coordinate of the top left corner of the ROI.
+            y1: The y-coordinate of the top left corner of the ROI.
+            x2: The x-coordinate of the bottom right corner of the ROI.
+            y2: The y-coordinate of the bottom right corner of the ROI.
+            amount: The amount to resize the ROI. If a float is provided, the ROI is resized by this factor.
+                If a tuple is provided, the ROI is resized to the specified width and height.
+
+        Returns:
+            The coordinates of the resized ROI in the format (x1, y1, x2, y2).
+        """
+        if isinstance(amount, float):
+            new_width = (x2 - x1) * amount
+            new_height = (y2 - y1) * amount
+        else:
+            new_height, new_width = amount
+
+        center_x = (x1 + x2) / 2
+        center_y = (y1 + y2) / 2
+
+        x1 = int(center_x - new_width / 2)
+        y1 = int(center_y - new_height / 2)
+        x2 = int(center_x + new_width / 2)
+        y2 = int(center_y + new_height / 2)
+        return x1, y1, x2, y2
+
+    @staticmethod
+    def apply_aspect_ratio(x1: int, y1: int, x2: int, y2: int, aspect_ratio: float) -> Tuple[int, int, int, int]:
+        """
+        Adjusts the aspect ratio of the region of interest (ROI). The ROI is expanded or contracted about its center.
+        Only the width or height of the ROI is changed, depending on which dimension is further from the desired
+        aspect ratio.
+
+        Args:
+            x1: The x-coordinate of the top left corner of the ROI.
+            y1: The y-coordinate of the top left corner of the ROI.
+            x2: The x-coordinate of the bottom right corner of the ROI.
+            y2: The y-coordinate of the bottom right corner of the ROI.
+            aspect_ratio: The desired aspect ratio for the ROI (height / width)
+
+        Returns:
+            The coordinates of the ROI with the adjusted aspect ratio in the format (x1, y1, x2, y2).
+        """
+        current_aspect_ratio = (y2 - y1) / (x2 - x1)
+        x_center = (x1 + x2) / 2
+        y_center = (y1 + y2) / 2
+
+        if current_aspect_ratio > aspect_ratio:
+            # Increase width
+            new_width = (y2 - y1) / aspect_ratio
+            x1 = int(x_center - new_width / 2)
+            x2 = int(x_center + new_width / 2)
+        else:
+            # Increase height
+            new_height = (x2 - x1) * aspect_ratio
+            y1 = int(y_center - new_height / 2)
+            y2 = int(y_center + new_height / 2)
+
+        return x1, y1, x2, y2
 
 
 @dataclass

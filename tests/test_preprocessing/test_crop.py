@@ -119,12 +119,51 @@ class TestROICrop:
         }
 
     @pytest.mark.parametrize(
+        "x1, y1, x2, y2, height, width, exp",
+        [
+            pytest.param(0, 0, 10, 10, 20, 20, (0, 0, 10, 10)),
+            pytest.param(-5, -5, 5, 5, 20, 20, (0, 0, 10, 10)),
+            pytest.param(0, 0, 25, 25, 20, 20, (-5, -5, 20, 20)),
+            pytest.param(15, 15, 25, 25, 20, 20, (10, 10, 20, 20)),
+        ],
+    )
+    def test_shift_roi_in_frame(self, x1, y1, x2, y2, height, width, exp):
+        act = ROICrop.shift_roi_in_frame(x1, y1, x2, y2, height, width)
+        assert act == exp
+
+    @pytest.mark.parametrize(
+        "x1, y1, x2, y2, amount, exp",
+        [
+            pytest.param(0, 0, 10, 10, 2.0, (-5, -5, 15, 15)),
+            pytest.param(0, 0, 10, 10, (20, 20), (-5, -5, 15, 15)),
+            pytest.param(5, 5, 15, 15, 0.5, (7, 7, 12, 12)),
+            pytest.param(5, 5, 15, 15, (10, 10), (5, 5, 15, 15)),
+        ],
+    )
+    def test_resize_roi(self, x1, y1, x2, y2, amount, exp):
+        act = ROICrop.resize_roi(x1, y1, x2, y2, amount)
+        assert act == exp
+
+    @pytest.mark.parametrize(
+        "x1, y1, x2, y2, aspect_ratio, exp",
+        [
+            pytest.param(0, 0, 10, 10, 1.0, (0, 0, 10, 10)),
+            pytest.param(0, 0, 10, 10, 2.0, (0, -5, 10, 15)),
+            pytest.param(0, 0, 10, 10, 0.5, (-5, 0, 15, 10)),
+        ],
+    )
+    def test_apply_aspect_ratio(self, x1, y1, x2, y2, aspect_ratio, exp):
+        act = ROICrop.apply_aspect_ratio(x1, y1, x2, y2, aspect_ratio)
+        assert act == exp
+
+    @pytest.mark.parametrize(
         "height, width, sopuid, min_size, exp",
         [
             (30, 30, "1.2.3", (30, 30), (0, 0, 30, 30)),
-            (30, 30, "1.2.3", (5, 5), (0, 0, 10, 10)),
+            (30, 30, "1.2.3", (5, 5), (0, 0, 14, 14)),
             (30, 30, "2.3.4", (30, 30), (0, 0, 30, 30)),
-            (30, 30, "4.5.6", (5, 5), (10, 10, 15, 15)),
+            (30, 30, "4.5.6", (5, 5), (8, 8, 16, 16)),
+            (15, 15, "4.5.6", (8, 8), (7, 7, 15, 15)),
         ],
     )
     def test_get_bounds(self, crop, sopuid, inp, exp):
@@ -138,7 +177,7 @@ class TestROICrop:
         "height, width, sopuid, min_size, exp",
         [
             (30, 30, "1.2.3", (30, 30), (30, 30)),
-            (30, 30, "1.2.3", (5, 5), (10, 10)),
+            (30, 30, "1.2.3", (5, 5), (14, 14)),
         ],
     )
     def test_crop(self, crop, inp, exp):
