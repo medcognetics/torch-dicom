@@ -319,12 +319,16 @@ class ROICrop(Crop):
         min_size: Minimum size of the crop in the format (H, W). If the ROI is smaller than this,
             the crop will be expanded to this size.
 
+        roi_expansion: Amount to expand the ROI by. This ensures that adequte context is included in the crop.
+            The default increases size by 50%
+
     Shape:
         - Input: :math:`(C, H, W)`
         - Output: :math:`(C, H', W')`
     """
     path: Path
     min_size: Tuple[int, int] = (256, 256)
+    roi_expansion: float = 1.5
 
     def __post_init__(self):
         super().__post_init__()
@@ -389,9 +393,9 @@ class ROICrop(Crop):
 
         if sopuid not in self.df.index:
             # Choose a random height and width for the crop
-            MAX = 0.5
-            max_H = max(H_min, int(H * MAX))
-            max_W = max(W_min, int(W * MAX))
+            MAX_RANDOM_CROP_RATIO = 0.5
+            max_H = max(H_min, int(H * MAX_RANDOM_CROP_RATIO))
+            max_W = max(W_min, int(W * MAX_RANDOM_CROP_RATIO))
             crop_H = int(torch.randint(H_min, max_H + 1, (1,)))
             crop_W = int(torch.randint(W_min, max_W + 1, (1,)))
 
@@ -424,8 +428,8 @@ class ROICrop(Crop):
                 match = matches
                 x1, y1, x2, y2 = match.values
 
-            # Expand the ROI by 15% in each direction
-            x1, y1, x2, y2 = self.resize_roi(x1, y1, x2, y2, 1.5)
+            # Expand the ROI in each direction to increase context
+            x1, y1, x2, y2 = self.resize_roi(x1, y1, x2, y2, self.roi_expansion)
 
         # Change the aspect ratio to match that of self.min_size
         x1, y1, x2, y2 = self.apply_aspect_ratio(x1, y1, x2, y2, H_min / W_min)
