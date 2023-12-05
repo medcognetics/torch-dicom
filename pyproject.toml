@@ -24,8 +24,8 @@ dynamic = ["version"]
 j2k = [
   "pynvjpeg2k @ git+ssh://git@github.com/medcognetics/pynvjpeg2k.git",
 ]
-lightning = [
-    "pytorch-lightning>=2.1.0",
+datamodule = [
+    "pytorch-lightning>=2.1.2",
 ]
 
 [tool.autoflake]
