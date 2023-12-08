@@ -24,6 +24,10 @@ dynamic = ["version"]
 j2k = [
   "pynvjpeg2k @ git+ssh://git@github.com/medcognetics/pynvjpeg2k.git",
 ]
+datamodule = [
+    "pytorch-lightning>=2.1.2",
+    "deep-helpers @ git+https://github.com/TidalPaladin/deep-helpers.git",
+]
 
 [tool.autoflake]
 remove-all-unused-imports = true
