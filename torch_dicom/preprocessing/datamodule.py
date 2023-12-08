@@ -33,7 +33,7 @@ PathLike = Union[str, os.PathLike, Path]
 
 
 def _prepare_inputs(inputs: Union[PathLike, Sequence[PathLike]]) -> List[Path]:
-    return [Path(i) for i in ([inputs] if isinstance(inputs, (str, os.PathLike, Path)) else inputs)]
+    return [Path(i) for i in ([inputs] if isinstance(inputs, PathLike) else inputs)]
 
 
 def _unwrap_dataset(dataset: Union[ImagePathDataset, MetadataDatasetWrapper]) -> ImagePathDataset:
