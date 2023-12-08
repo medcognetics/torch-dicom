@@ -2,7 +2,7 @@ import math
 from abc import ABC, abstractmethod, abstractproperty
 from os import PathLike
 from pathlib import Path
-from typing import Dict, Iterable, Iterator, List, Optional, Sequence, Union
+from typing import Dict, Iterable, Iterator, List, Optional, Sequence, TypeVar, Union
 
 import numpy as np
 import pandas as pd
@@ -15,35 +15,65 @@ def get_sopuid(paths: Iterable[PathLike]) -> Iterator[str]:
         yield Path(path).stem
 
 
+def read_metadata(
+    inp: Union[PathLike, Iterable[PathLike]],
+    sop_uid_col: str = "SOPInstanceUID",
+) -> pd.DataFrame:
+    """
+    Reads metadata from a CSV file or a list of CSV files and returns it as a DataFrame.
+
+    The CSV file(s) is/are read into a DataFrame with the SOPInstanceUID as the index.
+    The index is then converted to a string type.
+
+    Args:
+        inp: Path to the CSV file or a list of CSV files containing the metadata.
+        sop_uid_col: Name of the column in the CSV file containing the SOPInstanceUID. Defaults to "SOPInstanceUID".
+
+    Returns:
+        DataFrame containing the metadata from the CSV file(s).
+    """
+
+    if isinstance(inp, PathLike):
+        df = pd.read_csv(inp, index_col=sop_uid_col)
+        df.index = df.index.astype(str)
+    elif isinstance(inp, Iterable):
+        df = pd.concat([read_metadata(p, sop_uid_col) for p in inp])
+    else:
+        raise TypeError(f"Expected PathLike or Iterable, got {type(inp)}")
+    df = df[~df.index.duplicated()]
+    return df
+
+
 class WeightedCSVSampler(WeightedRandomSampler):
     r"""Sampler that uses information in a CSV file to sample from a dataset with weights.
     Column matching will be done using string comparision.
 
     Args:
-        metadata: Path to a CSV file containing metadata about the dataset.
+        metadata: Path(s) to a CSV file containing metadata about the dataset.
         example_paths: Paths to the examples in the dataset.
         colname: Name of the column in the CSV file containing the class names.
         weights: Mapping of classes to weights. Weight values should sum to 1.
         num_samples: Number of samples to draw. If not specified, the entire dataset will be used.
         generator: Generator used to sample from the dataset.
+        sop_col: Name of the column in the CSV file containing the SOPInstanceUID. Defaults to "SOPInstanceUID".
     """
 
     def __init__(
         self,
-        metadata: Path,
+        metadata: Union[Path, Iterable[Path]],
         example_paths: Sequence[Path],
         colname: str,
         weights: Dict[str, float],
         num_samples: Optional[int] = None,
         generator: Optional[torch.Generator] = None,
+        sop_col: str = "SOPInstanceUID",
     ):
         if not math.isclose(sum(weights.values()), 1):
             raise ValueError(f"Weights must sum to 1: {weights}")
 
         # Read the metadata CSV and create a weight column.
         # If a weight value cannot be found for a class, use 0.
-        df = pd.read_csv(metadata, index_col="SOPInstanceUID")
-        df.index = df.index.astype(str)
+        df = read_metadata(metadata, sop_col)
         df[colname] = df[colname].astype(str)
         df["weight"] = df[colname].apply(lambda v: weights.get(str(v), 0))
 
@@ -72,6 +102,9 @@ class WeightedCSVSampler(WeightedRandomSampler):
         )
 
 
+T = TypeVar("T", bound="BatchComplementSampler")
+
+
 class BatchComplementSampler(BatchSampler, ABC):
     r"""Base class for a batch sampler that builds batches by adding complements to examples.
     The metadata CSV file should be indexed by SOPInstanceUID.
@@ -81,22 +114,23 @@ class BatchComplementSampler(BatchSampler, ABC):
         batch_size: Size of each batch. Should be a multiple of complement_size.
         metadata: Path to a CSV file containing metadata about the dataset.
         example_paths: Paths to the examples in the dataset.
+        sop_col: Name of the column in the CSV file containing the SOPInstanceUID. Defaults to "SOPInstanceUID".
     """
 
     def __init__(
         self,
         sampler: Union[Sampler[int], Iterable[int]],
         batch_size: int,
-        metadata: Path,
+        metadata: Union[Path, Iterable[Path]],
         example_paths: Sequence[Path],
+        sop_col: str = "SOPInstanceUID",
     ):
         super().__init__(sampler, batch_size, drop_last=True)
         if batch_size % self.complement_size != 0:
             raise ValueError(f"Batch size must be a multiple of complement size {self.complement_size}")
 
         # Read the metadata CSV
-        self.metadata = pd.read_csv(metadata, index_col="SOPInstanceUID")
-        self.metadata.index = self.metadata.index.astype(str)
+        self.metadata = read_metadata(metadata, sop_col)
 
         # Read the SOPInstanceUIDs from the example paths.
         # We will assume that all examples are in the metadata.

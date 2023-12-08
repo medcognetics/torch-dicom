@@ -52,6 +52,10 @@ class TestWeightedCSVSampler:
         result = [idx % 2 for idx in sampler]
         assert math.isclose(sum(result) / len(result), 0.75, abs_tol=0.05)
 
+    def test_handle_duplicates(self, metadata, paths):
+        sampler = WeightedCSVSampler([metadata, metadata], paths, "value", {"0": 0.2, "1": 0.8})
+        assert len(sampler) == len(paths)
+
 
 class TestBatchComplementSampler:
     @pytest.fixture
