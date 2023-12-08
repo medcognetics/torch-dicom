@@ -26,6 +26,7 @@ j2k = [
 ]
 datamodule = [
     "pytorch-lightning>=2.1.2",
+    "deep-helpers @ git+https://github.com/TidalPaladin/deep-helpers.git",
 ]
 
 [tool.autoflake]
