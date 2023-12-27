@@ -40,6 +40,7 @@ class AddOverlay(Transform):
                 desc="Loading overlay images",
                 unit="image",
                 disable=not use_bar,
+                leave=False,
             )
         )
         self.p = p
