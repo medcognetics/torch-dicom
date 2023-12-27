@@ -13,7 +13,7 @@ dependencies = [
     "einops",
     "torch>=1.11.0",
     "pandas",
-    "dicom-utils @ git+https://github.com/medcognetics/dicom-utils.git",
+    "dicom-utils @ git+https://github.com/medcognetics/dicom-utils.git@fix/factory-pixels",
     "torchvision>=0.16.0",
 ]
 readme = "README.md"

@@ -332,7 +332,8 @@ class TestDataFrameMetadata:
         wrapper = DataFrameMetadata(dataset, metadata)
         assert isinstance(repr(wrapper), str)
 
-    def test_getitem_with_metadata(self, dataset: Dataset, metadata: Path, sopuids_without_boxes):
+    def test_getitem_with_metadata(self, dataset: Dataset, metadata: Path, sopuids_without_boxes, dicom_size):
+        H, W = dicom_size
         wrapper = DataFrameMetadata(dataset, metadata)
         for example in wrapper:
             if example["record"].SOPInstanceUID not in sopuids_without_boxes:
@@ -340,8 +341,8 @@ class TestDataFrameMetadata:
         else:
             raise AssertionError("No example with metadata found")
         assert isinstance(example["metadata"], dict)
-        assert example["metadata"]["rows"] == 2048
-        assert example["metadata"]["columns"] == 1536
+        assert example["metadata"]["rows"] == H
+        assert example["metadata"]["columns"] == W
 
     def test_getitem_without_metadata(self, dataset: Dataset, metadata: Path, sopuids_without_boxes):
         wrapper = DataFrameMetadata(dataset, metadata)

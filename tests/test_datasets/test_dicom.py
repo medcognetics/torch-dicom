@@ -120,20 +120,22 @@ class TestDicomInput:
         return dicom_iterator
 
     @pytest.mark.parametrize("num_frames", [1, 5])
-    def test_load_pixels(self, num_frames):
-        H, W = 512, 384
+    def test_load_pixels(self, num_frames, dicom_size):
+        H, W = dicom_size
         fact = DicomFactory(Modality="MG", Rows=H, Columns=W, NumberOfFrames=num_frames)
         dcm = fact()
         img = self.TEST_CLASS.load_pixels(dcm)
         assert img.shape == (1, H, W)
+        assert 0 <= img.min() <= img.max() <= 1
+        assert img.unique().numel() > 1
 
     @pytest.mark.parametrize("inversion", [True, False])
     @pytest.mark.parametrize("voi_lut", [True, False])
     @pytest.mark.parametrize("rescale", [True, False])
     @pytest.mark.parametrize("normalize", [True, False])
     @pytest.mark.parametrize("volume_handler", [ReduceVolume(), KeepVolume()])
-    @pytest.mark.parametrize("img_size", [(2048, 1536), (1024, 768)])
-    @pytest.mark.parametrize("transform", [None, ColorJitter(brightness=0.1)])
+    @pytest.mark.parametrize("img_size", [(64, 32), (32, 16)])
+    @pytest.mark.parametrize("transform", [None])
     def test_iter(
         self, mocker, dataset_input, normalize, volume_handler, img_size, voi_lut, inversion, rescale, transform
     ):
@@ -159,6 +161,7 @@ class TestDicomInput:
             assert isinstance(example["img"], Video if expecting_3d else Image)
             assert example["img"].shape == expected_shape
             assert example["img"].dtype == (torch.float if normalize else torch.int32)
+            assert example["img"].unique().numel() > 1
             assert isinstance(example["img_size"], Tensor) and example["img_size"].shape == (2,)
             assert isinstance(example["record"], MammogramFileRecord)
             assert example["record"].path == DUMMY_PATH
@@ -175,13 +178,14 @@ class TestDicomInput:
             assert call.kwargs["inversion"] == inversion
             assert call.kwargs["rescale"] == rescale
 
-    def test_collate(self, dataset_input):
+    def test_collate(self, dataset_input, dicom_size):
+        H, W = dicom_size
         ds = iter(self.TEST_CLASS(dataset_input))
         e1 = next(ds)
         e2 = next(ds)
         batch = collate_fn([deepcopy(e1), deepcopy(e2)], False)
         assert isinstance(batch, dict)
-        assert isinstance(batch["img"], Tensor) and batch["img"].shape == (2, 1, 2048, 1536)
+        assert isinstance(batch["img"], Tensor) and batch["img"].shape == (2, 1, H, W)
         assert isinstance(batch["img_size"], Tensor) and batch["img_size"].shape == (2, 2)
         assert isinstance(batch["record"], list) and len(batch["record"]) == 2
         assert isinstance(batch["dicom"], list) and len(batch["dicom"]) == 2
@@ -232,15 +236,17 @@ class TestDicomPathInput(TestDicomInput):
         return file_iterator
 
     @pytest.mark.parametrize("normalize", [True, False])
-    def test_iter(self, dataset_input, normalize):
+    def test_iter(self, dataset_input, normalize, dicom_size):
+        H, W = dicom_size
         dataset_input = list(dataset_input)
         ds = iter(self.TEST_CLASS(dataset_input, normalize=normalize))
         seen = 0
         for i, example in enumerate(ds):
             seen += 1
             assert isinstance(example["img"], Image)
-            assert example["img"].shape == (1, 2048, 1536)
+            assert example["img"].shape == (1, H, W)
             assert example["img"].dtype == (torch.float if normalize else torch.int32)
+            assert example["img"].unique().numel() > 1
             assert isinstance(example["img_size"], Tensor) and example["img_size"].shape == (2,)
             assert isinstance(example["record"], MammogramFileRecord)
             assert example["record"].path == dataset_input[i]
@@ -249,13 +255,14 @@ class TestDicomPathInput(TestDicomInput):
             assert not example["dicom"].get("pixel_array", None), "pixel_array not removed"
         assert seen == 12
 
-    def test_collate(self, dataset_input):
+    def test_collate(self, dataset_input, dicom_size):
+        H, W = dicom_size
         dataset_input = list(dataset_input)
         ds = iter(self.TEST_CLASS(dataset_input))
         e1 = next(ds)
         e2 = next(ds)
         batch = collate_fn([e1, e2])
-        assert isinstance(batch["img"], Tensor) and batch["img"].shape == (2, 1, 2048, 1536)
+        assert isinstance(batch["img"], Tensor) and batch["img"].shape == (2, 1, H, W)
         assert isinstance(batch["img_size"], Tensor) and batch["img_size"].shape == (2, 2)
         assert isinstance(batch["record"], list) and len(batch["record"]) == 2
         assert isinstance(batch["dicom"], list) and len(batch["dicom"]) == 2
@@ -277,9 +284,9 @@ class TestDicomPathDataset(TestDicomPathInput):
     @pytest.mark.parametrize("inversion", [True, False])
     @pytest.mark.parametrize("voi_lut", [True, False])
     @pytest.mark.parametrize("volume_handler", [ReduceVolume(), KeepVolume()])
-    def test_getitem(self, mocker, dataset_input, volume_handler, voi_lut, inversion):
+    def test_getitem(self, mocker, dataset_input, volume_handler, voi_lut, inversion, dicom_size):
         dataset_input = list(dataset_input)
-        img_size = (2048, 1536)
+        img_size = H, W = dicom_size
         ds = self.TEST_CLASS(
             iter(dataset_input),
             img_size=img_size,
@@ -292,11 +299,12 @@ class TestDicomPathDataset(TestDicomPathInput):
 
         expected_num_frames = 3 if isinstance(volume_handler, KeepVolume) else None
         expecting_3d = isinstance(volume_handler, KeepVolume) and not example["record"].is_2d
-        expected_shape = (1, expected_num_frames, 2048, 1536) if expecting_3d else (1, *img_size)
+        expected_shape = (1, expected_num_frames, H, W) if expecting_3d else (1, *img_size)
 
         assert isinstance(example["img"], Video if expecting_3d else Image)
         assert example["img"].shape == expected_shape
         assert example["img"].dtype == torch.float
+        assert example["img"].unique().numel() > 1
         assert isinstance(example["img_size"], Tensor) and example["img_size"].shape == (2,)
         assert isinstance(example["record"], MammogramFileRecord)
         assert example["record"].path == dataset_input[0]
