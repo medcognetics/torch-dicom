@@ -79,7 +79,8 @@ markers = [
   "ci_skip",
 ]
 filterwarnings = [
-  "ignore:.*Invalid value for VR.*:UserWarning"
+  "ignore:.*Invalid value for VR.*:UserWarning",
+  "ignore:.*indicates it contains excess padding.*:UserWarning"
 ]
 
 # Sample script config
