@@ -183,13 +183,13 @@ class AddWatermark(AddOverlay):
         params = super()._get_params(flat_inputs)
 
         # Select the grid cell where the watermark will be placed
-        quadrant = self._select_grid_cell(img, grid_size=self.grid_size)
+        grid_cell = self._select_grid_cell(img, grid_size=self.grid_size)
         H, W = img.shape[-2:]
         Hq, Wq = H // self.grid_size, W // self.grid_size
 
         # Convert this to a center coordinate
         quadrant_center = torch.cat(
-            [H * (quadrant // self.grid_size) + Hq // 2, W * (quadrant % self.grid_size) + Wq // 2], dim=-1
+            [H * (grid_cell // self.grid_size) + Hq // 2, W * (grid_cell % self.grid_size) + Wq // 2], dim=-1
         )
 
         params["center"] = quadrant_center.view(2)
