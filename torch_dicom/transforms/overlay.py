@@ -217,12 +217,13 @@ class AddWatermark(AddOverlay):
         # Split the image into grid_size x grid_size cells
         img = rearrange(img, "... c (nh hq) (nw wq) -> ... c (hq wq) (nh nw)", nh=grid_size, nw=grid_size)
 
-        # Sum pixels within each quadrant
-        pixel_sum = img.sum(dim=-2)
+        # Sum pixels within each cell
+        cell_pixel_sums = img.sum(dim=-2)
 
         # Select the cell with the lowest pixel sum.
         # If multiple cells have the same sum, select one at random.
-        min_pixel_count = pixel_sum.amin(dim=-1, keepdim=True)
-        min_pixel_count = (pixel_sum == min_pixel_count).float()
-        min_pixel_count = min_pixel_count / min_pixel_count.sum(dim=-1, keepdim=True)
-        return torch.multinomial(min_pixel_count.view(-1, grid_size * grid_size), num_samples=1).view(-1, 1)
+        smallest_cell_pixel_sum = cell_pixel_sums.amin(dim=-1, keepdim=True)
+        is_cell_with_smallest_sum = cell_pixel_sums == smallest_cell_pixel_sum
+        num_cells_with_smallest_sum = is_cell_with_smallest_sum.sum(dim=-1, keepdim=True)
+        sample_probs = is_cell_with_smallest_sum.float() / num_cells_with_smallest_sum.float()
+        return torch.multinomial(sample_probs.view(-1, grid_size * grid_size), num_samples=1).view(-1, 1)
