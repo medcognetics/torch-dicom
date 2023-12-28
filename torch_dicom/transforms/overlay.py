@@ -110,7 +110,8 @@ class AddOverlay(Transform):
         # Apply the watermark
         target_for_watermark = inpt[..., bounds[0] : bounds[2], bounds[1] : bounds[3]]
         watermark, alpha = watermark.split(1)
-        target_for_watermark = torch.where(alpha > 0, watermark, target_for_watermark)
+        assert 0 <= alpha.min() <= alpha.max() <= 1
+        target_for_watermark = (1 - alpha) * target_for_watermark + alpha * watermark
         inpt[..., bounds[0] : bounds[2], bounds[1] : bounds[3]] = target_for_watermark
         return inpt
 
