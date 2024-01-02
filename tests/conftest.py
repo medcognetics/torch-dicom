@@ -7,14 +7,26 @@ import pytest
 import torch
 from dicom_utils.dicom import set_pixels
 from dicom_utils.dicom_factory import CompleteMammographyStudyFactory
-from dicom_utils.tags import Tag
 from PIL import Image
 from pydicom.uid import ExplicitVRLittleEndian, ImplicitVRLittleEndian, RLELossless
 
 
 @pytest.fixture(scope="session")
-def dicoms():
-    fact = CompleteMammographyStudyFactory(Rows=2048, Columns=1536, seed=42, WindowCenter=5, WindowWidth=4)
+def dicom_size():
+    return (64, 32)
+
+
+@pytest.fixture(scope="session")
+def dicoms(dicom_size):
+    H, W = dicom_size
+    fact = CompleteMammographyStudyFactory(
+        Rows=H,
+        Columns=W,
+        seed=42,
+        BitsAllocated=16,
+        WindowCenter=4096,
+        WindowWidth=8192,
+    )
     dicoms = fact()
 
     # Ensure we have a mix of inversions
@@ -27,8 +39,6 @@ def dicoms():
         set_pixels(dcm, dcm.pixel_array, tsuid)
         dcm.file_meta.TransferSyntaxUID = tsuid
 
-    for dcm in dicoms:
-        dcm[Tag.PixelData].VR = "OW"
     return dicoms
 
 
@@ -65,9 +75,10 @@ def file_list(tmpdir_factory, file_iterator):
 
 
 @pytest.fixture(scope="session")
-def tensors():
+def tensors(dicom_size):
+    H, W = dicom_size
     torch.random.manual_seed(0)
-    return [torch.rand(1, 2048, 1536) for _ in range(12)]
+    return [torch.rand(1, H, W) for _ in range(12)]
 
 
 @pytest.fixture
