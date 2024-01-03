@@ -5,4 +5,27 @@ from .pipeline import PreprocessingPipeline
 from .resize import Resize
 
 
-__all__ = ["MinMaxCrop", "PreprocessingPipeline", "Resize", "ROICrop", "TileCrop"]
+def datamodule_available() -> bool:
+    try:
+        from .datamodule import PreprocessedPNGDataModule  # noqa: F401
+    except ImportError:
+        return False
+    return True
+
+
+def require_datamodule() -> None:
+    if not datamodule_available():
+        raise ImportError(
+            "PreprocessedPNGDataModule is not available." "Please install the `torch-dicom[datamodule]` extra."
+        )
+
+
+__all__ = [
+    "MinMaxCrop",
+    "PreprocessingPipeline",
+    "Resize",
+    "ROICrop",
+    "TileCrop",
+    "datamodule_available",
+    "require_datamodule",
+]
