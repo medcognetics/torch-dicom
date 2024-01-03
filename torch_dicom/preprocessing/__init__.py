@@ -7,7 +7,7 @@ from .resize import Resize
 
 def datamodule_available() -> bool:
     try:
-        pass
+        import pytorch_lightning as pl  # noqa
     except ImportError:
         return False
     return True
