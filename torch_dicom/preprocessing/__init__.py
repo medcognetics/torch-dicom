@@ -7,7 +7,7 @@ from .resize import Resize
 
 def datamodule_available() -> bool:
     try:
-        import pytorch_lightning as pl  # noqa
+        from .datamodule import PreprocessedPNGDataModule  # noqa: F401
     except ImportError:
         return False
     return True
