@@ -96,6 +96,7 @@ class TestDicomTestFactory:
         assert 0 < len(result) <= len(dicom_files)
         assert result.index.name == "SOPInstanceUID"
         assert set(result.columns.tolist()) == {"x1", "y1", "x2", "y2", "trait", "types"}
+        assert isinstance(result.iloc[0].x1, float)
 
     @pytest.mark.parametrize("setup", [False, True])
     def test_call(self, mocker, factory, setup):
@@ -112,7 +113,14 @@ class TestDicomTestFactory:
                 dm.val_dataloader(),
                 dm.test_dataloader(),
             ):
-                assert isinstance(next(iter(dl)), dict)
+                batch = next(iter(dl))
+                assert isinstance(batch, dict)
+                # This will always be present
+                assert "img" in batch
+                # These are set by the args to __call__()
+                assert "manifest" in batch
+                assert "annotation" in batch
+                assert "bounding_boxes" in batch
 
         else:
             spy.assert_not_called()

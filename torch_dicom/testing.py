@@ -1,6 +1,20 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, ClassVar, Iterator, List, Sequence, Tuple, Type, cast
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    ClassVar,
+    Dict,
+    Final,
+    Iterable,
+    Iterator,
+    List,
+    Optional,
+    Sequence,
+    Tuple,
+    Type,
+    cast,
+)
 
 import numpy as np
 import pandas as pd
@@ -15,6 +29,13 @@ from torch_dicom.preprocessing import PreprocessingPipeline
 from torch_dicom.preprocessing.datamodule import PreprocessedPNGDataModule
 
 from .preprocessing import require_datamodule
+
+
+# Default filenames for test factory
+DEFAULT_MANIFEST_FILENAME: Final = "manifest.csv"
+DEFAULT_ANNOTATION_MANIFEST_FILENAME: Final = "annotation_manifest.csv"
+DEFAULT_TRACE_MANIFEST_FILENAME: Final = "trace_manifest.csv"
+DEFAULT_TRACE_EXTRA_KEYS: Final = ["trait", "types"]
 
 
 if TYPE_CHECKING:
@@ -237,13 +258,14 @@ class DicomTestFactory:
         trace_coords = [create_random_box(i, self.dicom_size) if has_trace[i] else None for i in range(len(sop_uids))]
 
         # Create the manifest
+        coord_dict = {
+            f"{coord}": [int(box.flatten()[i].item()) if box is not None else None for box in trace_coords]
+            for i, coord in enumerate(["x1", "y1", "x2", "y2"])
+        }
         df = pd.DataFrame(
             {
                 "SOPInstanceUID": sop_uids,
-                "x1": [box.flatten()[0] if box is not None else None for box in trace_coords],
-                "y1": [box.flatten()[1] if box is not None else None for box in trace_coords],
-                "x2": [box.flatten()[2] if box is not None else None for box in trace_coords],
-                "y2": [box.flatten()[3] if box is not None else None for box in trace_coords],
+                **coord_dict,
                 "trait": trace_traits,
                 "types": trace_types,
             }
@@ -255,12 +277,25 @@ class DicomTestFactory:
 
         return df
 
-    def __call__(self, setup: bool = True, **kwargs) -> PreprocessedPNGDataModule:
+    def __call__(
+        self,
+        setup: bool = True,
+        metadata_filenames: Dict[str, str] = {
+            "manifest": DEFAULT_MANIFEST_FILENAME,
+            "annotation": DEFAULT_ANNOTATION_MANIFEST_FILENAME,
+        },
+        boxes_filename: Optional[str] = DEFAULT_TRACE_MANIFEST_FILENAME,
+        boxes_extra_keys: Iterable[str] = DEFAULT_TRACE_EXTRA_KEYS,
+        **kwargs,
+    ) -> PreprocessedPNGDataModule:
         r"""Creates a :class:`PreprocessedPNGDataModule` using the factory.
 
         Args:
             setup: Whether to setup the created :class:`PreprocessedPNGDataModule` instance.
                 If ``True``, the :func:`setup` hook will be called for the ``fit`` and ``test`` stages.
+            metadata_filenames: Filenames for the manifest and annotation manifest CSV files.
+            boxes_filename: Filename for the trace manifest CSV file.
+            boxes_extra_keys: Extra keys to include in the trace manifest CSV file.
 
         Keyword Args:
             Forwarded to the :class:`PreprocessedPNGDataModule` constructor.
@@ -285,15 +320,18 @@ class DicomTestFactory:
         manifest = self.create_manifest(dicom_files)
         annotation_manifest = self.create_annotation_manifest(dicom_files)
         trace_manifest = self.create_trace_manifest(dicom_files)
-        manifest.to_csv(preprocessed_root / "manifest.csv")
-        annotation_manifest.to_csv(preprocessed_root / "annotation_manifest.csv")
-        trace_manifest.to_csv(preprocessed_root / "trace_manifest.csv")
+        manifest.to_csv(preprocessed_root / DEFAULT_MANIFEST_FILENAME)
+        annotation_manifest.to_csv(preprocessed_root / DEFAULT_ANNOTATION_MANIFEST_FILENAME)
+        trace_manifest.to_csv(preprocessed_root / DEFAULT_TRACE_MANIFEST_FILENAME)
 
         # Create the data module
         dm = PreprocessedPNGDataModule(
             train_inputs=preprocessed_root,
             val_inputs=preprocessed_root,
             test_inputs=preprocessed_root,
+            metadata_filenames=metadata_filenames,
+            boxes_filename=boxes_filename,
+            boxes_extra_keys=boxes_extra_keys,
             **kwargs,
         )
 
