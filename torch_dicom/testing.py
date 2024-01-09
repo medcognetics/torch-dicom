@@ -258,13 +258,14 @@ class DicomTestFactory:
         trace_coords = [create_random_box(i, self.dicom_size) if has_trace[i] else None for i in range(len(sop_uids))]
 
         # Create the manifest
+        coord_dict = {
+            f"{coord}": [int(box.flatten()[i].item()) if box is not None else None for box in trace_coords]
+            for i, coord in enumerate(["x1", "y1", "x2", "y2"])
+        }
         df = pd.DataFrame(
             {
                 "SOPInstanceUID": sop_uids,
-                "x1": [int(box.flatten()[0].item()) if box is not None else None for box in trace_coords],
-                "y1": [int(box.flatten()[1].item()) if box is not None else None for box in trace_coords],
-                "x2": [int(box.flatten()[2].item()) if box is not None else None for box in trace_coords],
-                "y2": [int(box.flatten()[3].item()) if box is not None else None for box in trace_coords],
+                **coord_dict,
                 "trait": trace_traits,
                 "types": trace_types,
             }
