@@ -254,7 +254,7 @@ class DicomInput(IterableDataset, SupportsTransform):
                 if not self.skip_errors:
                     raise
                 else:
-                    logging.warn("Encountered error while loading DICOM but skip_errors is True, skipping", ex)
+                    logging.warn("Encountered error while loading DICOM but skip_errors is True, skipping", exc_info=ex)
 
     @classmethod
     def load_example(
