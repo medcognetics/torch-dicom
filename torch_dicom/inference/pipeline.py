@@ -12,7 +12,7 @@ from dicom_utils.dicom import Dicom
 from dicom_utils.volume import ReduceVolume, VolumeHandler
 from PIL import Image
 from torch import Tensor
-from torch.utils.data import ChainDataset, ConcatDataset, DataLoader, Dataset
+from torch.utils.data import ChainDataset, ConcatDataset, DataLoader, Dataset, IterableDataset
 from torchvision.transforms.v2 import Compose
 from tqdm import tqdm
 
@@ -150,13 +150,13 @@ class InferencePipeline(ABC):
             *self.custom_inputs,
         ]
 
-        # If enumerate_inputs is True and every dataset is a Sequence, we will return a ConcatDataset
+        # If enumerate_inputs is True and every dataset has a length, we will return a ConcatDataset
         #
         # If enumerate_inputs is False or inputs were given that don't have an associated map-style Dataset,
         # we will return a ChainDataset
         return (
             ConcatDataset(datasets)
-            if self.enumerate_inputs and all(isinstance(ds, Sequence) for ds in datasets)
+            if self.enumerate_inputs and not any(isinstance(ds, IterableDataset) for ds in datasets)
             else ChainDataset(datasets)
         )
 

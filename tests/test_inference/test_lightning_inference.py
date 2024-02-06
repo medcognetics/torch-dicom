@@ -99,3 +99,23 @@ class TestLightningInferencePipeline:
         )
         results = list(pipeline)
         assert not len(results)
+
+    def test_enumerate_inputs(self, file_iterator, tensor_files, image_files):
+        model = Model()
+        dicom_files = list(file_iterator)
+        tensor_files = list(tensor_files)
+        image_files = list(image_files)
+        pipeline = LightningInferencePipeline(
+            dicom_paths=iter(dicom_files),
+            image_paths=iter(image_files),
+            tensor_paths=iter(tensor_files),
+            models=[model],
+            skip_errors=False,
+            enumerate_inputs=True,
+        )
+        results = list(pipeline)
+        assert len(results) == len(dicom_files) + len(image_files) + len(tensor_files)
+        for example, pred in results:
+            assert isinstance(example, dict)
+            assert isinstance(pred, dict)
+            assert isinstance(pred["pred"], Tensor)
