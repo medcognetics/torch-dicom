@@ -1,4 +1,3 @@
-import os
 from copy import copy
 from functools import partial
 from pathlib import Path
@@ -29,7 +28,8 @@ from torch_dicom.datasets import (
 from torch_dicom.datasets.helpers import Transform
 
 
-PathLike = Union[str, os.PathLike, Path]
+# NOTE: jsonargparse has trouble if os.PathLike is in the union
+PathLike = Union[str, Path]
 
 
 def _prepare_inputs(inputs: Union[PathLike, Sequence[PathLike]]) -> List[Path]:

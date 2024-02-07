@@ -4,6 +4,7 @@ from typing import List, Sized
 import numpy as np
 import pandas as pd
 import pytest
+import yaml
 from deep_helpers.structs import Mode
 from dicom_utils.volume import ReduceVolume
 from torch.utils.data import DataLoader, RandomSampler, SequentialSampler
@@ -228,3 +229,55 @@ class TestPreprocessedPNGDataModule:
         batch = module.on_after_batch_transfer(batch, 0)
         if spy is not None:
             spy.assert_called_once()
+
+    def test_jsonargparse(self, tmp_path, preprocessed_data, manifest_csv, annotation_csv, roi_csv):
+        jsonargparse = pytest.importorskip("jsonargparse")
+        # Prepare config and save as YAML
+        transform = {
+            "class_path": "torchvision.transforms.v2.Compose",
+            "init_args": {
+                "transforms": [
+                    {
+                        "class_path": "torchvision.transforms.v2.Resize",
+                        "init_args": {
+                            "size": [512, 384],
+                        },
+                    }
+                ],
+            },
+        }
+        config = {
+            "data": {
+                "class_path": "torch_dicom.preprocessing.datamodule.PreprocessedPNGDataModule",
+                "init_args": {
+                    "train_inputs": [str(preprocessed_data)] * 2,
+                    "val_inputs": str(preprocessed_data),
+                    "test_inputs": str(preprocessed_data),
+                    "batch_size": 2,
+                    "train_transforms": transform,
+                    "train_gpu_transforms": transform,
+                    "val_transforms": transform,
+                    "test_transforms": transform,
+                    "boxes_filename": roi_csv.name,
+                    "metadata_filenames": {
+                        "manifest": manifest_csv.name,
+                        "annotation": annotation_csv.name,
+                    },
+                },
+            }
+        }
+        config_path = tmp_path / "config.yaml"
+        with open(config_path, "w") as f:
+            yaml.dump(config, f)
+
+        # Parse config
+        parser = jsonargparse.ArgumentParser()
+        parser.add_argument("--config", action=jsonargparse.ActionConfigFile)
+        parser.add_subclass_arguments(PreprocessedPNGDataModule, "data")
+        with pytest.raises(SystemExit):
+            parser.parse_args(["--help"])
+        cfg = parser.parse_args(["--config", str(config_path)])
+        cfg = parser.instantiate_classes(cfg)
+        assert isinstance(cfg.data, PreprocessedPNGDataModule)
+        assert cfg.data.batch_size == config["data"]["init_args"]["batch_size"]
+        cfg.data.setup("fit")
