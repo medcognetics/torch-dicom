@@ -153,6 +153,7 @@ class TestPreprocessedPNGDataModule:
         assert isinstance(output, exp)
         assert isinstance(output, Sized) and len(output) == len(ds)
 
+    @pytest.mark.parametrize("multi_inputs", [False, True])
     @pytest.mark.parametrize(
         "stage,batch_size,fn",
         [
@@ -161,7 +162,8 @@ class TestPreprocessedPNGDataModule:
             ("test", 1, "test_dataloader"),
         ],
     )
-    def test_setup(self, preprocessed_data, datamodule_with_metadata, stage, batch_size, fn):
+    def test_setup(self, preprocessed_data, datamodule_with_metadata, stage, batch_size, fn, multi_inputs):
+        preprocessed_data = [preprocessed_data] * 2 if multi_inputs else preprocessed_data
         module: PreprocessedPNGDataModule = datamodule_with_metadata(
             preprocessed_data,
             preprocessed_data,

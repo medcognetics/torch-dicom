@@ -2,7 +2,7 @@ import os
 from copy import copy
 from functools import partial
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Sized, Union
+from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Sized, Union, cast
 
 from deep_helpers.data.sampler import ConcatSampler
 from deep_helpers.structs import Mode
@@ -86,10 +86,10 @@ class PreprocessedPNGDataModule(LightningDataModule):
         test_inputs: Union[PathLike, Sequence[PathLike]] = [],
         batch_size: int = 4,
         seed: int = 42,
-        train_transforms: Optional[Transform] = None,
-        train_gpu_transforms: Optional[Transform] = None,
-        val_transforms: Optional[Transform] = None,
-        test_transforms: Optional[Transform] = None,
+        train_transforms: Optional[Callable] = None,
+        train_gpu_transforms: Optional[Callable] = None,
+        val_transforms: Optional[Callable] = None,
+        test_transforms: Optional[Callable] = None,
         train_dataset_kwargs: Dict[str, Any] = {},
         dataset_kwargs: Dict[str, Any] = {},
         metadata_filenames: Dict[str, str] = {},
@@ -106,10 +106,12 @@ class PreprocessedPNGDataModule(LightningDataModule):
         self.test_inputs = _prepare_inputs(test_inputs)
         self.batch_size = batch_size
         self.seed = seed
-        self.train_transforms = train_transforms
-        self.train_gpu_transforms = train_gpu_transforms
-        self.val_transforms = val_transforms
-        self.test_transforms = test_transforms
+        # NOTE: Callable[[E], E] generic seems to break jsonargparse
+        # Accept transforms as Callable and cast to Transform
+        self.train_transforms = cast(Transform, train_transforms)
+        self.train_gpu_transforms = cast(Transform, train_gpu_transforms)
+        self.val_transforms = cast(Transform, val_transforms)
+        self.test_transforms = cast(Transform, test_transforms)
         self.train_dataset_kwargs = train_dataset_kwargs
         self.dataset_kwargs = dataset_kwargs
         self.metadata_filenames = metadata_filenames
