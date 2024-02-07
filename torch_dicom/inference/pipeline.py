@@ -306,15 +306,14 @@ class InferencePipeline(ABC):
 
                 # Uncollate the batch and predictions and yield them
                 for example, prediction in zip(uncollate(batch), uncollate(predictions)):
+                    bar.update(1)
                     yield example, prediction
 
             except Exception as ex:
                 if self.skip_errors:
                     logging.warning(f"Error processing batch {batch_idx}", exc_info=ex)
+                    bar.update(self.batch_size)
                 else:
                     raise
-
-            finally:
-                bar.update(1)
 
         bar.close()
