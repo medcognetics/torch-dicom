@@ -263,6 +263,7 @@ class TestPreprocessedPNGDataModule:
                         "manifest": manifest_csv.name,
                         "annotation": annotation_csv.name,
                     },
+                    "train_sopuid_exclusions": ["1.2.3"],
                 },
             }
         }
@@ -281,3 +282,36 @@ class TestPreprocessedPNGDataModule:
         assert isinstance(cfg.data, PreprocessedPNGDataModule)
         assert cfg.data.batch_size == config["data"]["init_args"]["batch_size"]
         cfg.data.setup("fit")
+
+    @pytest.mark.parametrize("from_file", [False, True])
+    @pytest.mark.parametrize(
+        "stage,fn",
+        [
+            ("fit", "train_dataloader"),
+            ("fit", "val_dataloader"),
+            ("test", "test_dataloader"),
+        ],
+    )
+    def test_sopuid_exclusions(self, preprocessed_data, datamodule_with_metadata, stage, from_file, tmp_path, fn):
+        # Prepare a filter that only passes one example
+        sop_uids = [f.stem for f in preprocessed_data.rglob("*.png")]
+        if from_file:
+            sopuid_exclusions = tmp_path / "sopuid_exclusions.txt"
+            with open(sopuid_exclusions, "w") as f:
+                f.write("\n".join(sop_uids[:-1]))
+        else:
+            sopuid_exclusions = sop_uids[:-1]
+
+        # Check that the corresponding dataloader only has one example
+        module: PreprocessedPNGDataModule = datamodule_with_metadata(
+            preprocessed_data,
+            preprocessed_data,
+            preprocessed_data,
+            train_sopuid_exclusions=sopuid_exclusions,
+            val_sopuid_exclusions=sopuid_exclusions,
+            test_sopuid_exclusions=sopuid_exclusions,
+        )
+        module.setup(stage=str(stage))
+        loader = getattr(module, fn)()
+        assert isinstance(loader, DataLoader)
+        assert len(loader) == 1

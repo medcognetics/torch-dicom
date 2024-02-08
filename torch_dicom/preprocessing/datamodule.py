@@ -1,7 +1,7 @@
 from copy import copy
 from functools import partial
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Sized, Union, cast
+from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Set, Sized, Union, cast
 
 from deep_helpers.data.sampler import ConcatSampler
 from deep_helpers.structs import Mode
@@ -44,6 +44,21 @@ def _unwrap_dataset(dataset: Union[ImagePathDataset, MetadataDatasetWrapper]) ->
     return _dataset
 
 
+def _prepare_sopuid_exclusions(sopuid_exclusions: PathLike | Iterable[str] | None) -> Set[str]:
+    if isinstance(sopuid_exclusions, (str, Path)):
+        sopuid_exclusions = Path(sopuid_exclusions)
+        if not sopuid_exclusions.is_file():
+            raise FileNotFoundError(sopuid_exclusions)  # pragma: no cover
+        with open(sopuid_exclusions, "r") as f:
+            return set(f.read().splitlines())
+
+    elif isinstance(sopuid_exclusions, Iterable):
+        return set(sopuid_exclusions)
+
+    else:
+        return set()
+
+
 class PreprocessedPNGDataModule(LightningDataModule):
     r"""Data module for preprocessed PNG images.
 
@@ -74,6 +89,9 @@ class PreprocessedPNGDataModule(LightningDataModule):
         num_workers: Number of workers for data loading.
         pin_memory: Whether to pin memory.
         prefetch_factor: Prefetch factor for data loading.
+        train_sopuid_exclusions: SOPInstanceUIDs or path to a file of such to exclude from the training set.
+        val_sopuid_exclusions: SOPInstanceUIDs or path to a file of such to exclude from the validation set.
+        test_sopuid_exclusions: SOPInstanceUIDs or path to a file of such to exclude from the test set.
 
     Keyword Args:
         Forwarded to :class:`torch.utils.data.DataLoader`.
@@ -98,6 +116,9 @@ class PreprocessedPNGDataModule(LightningDataModule):
         num_workers: int = 0,
         pin_memory: bool = True,
         prefetch_factor: Optional[int] = None,
+        train_sopuid_exclusions: PathLike | Iterable[str] | None = None,
+        val_sopuid_exclusions: PathLike | Iterable[str] | None = None,
+        test_sopuid_exclusions: PathLike | Iterable[str] | None = None,
         **kwargs,
     ) -> None:
         super().__init__()
@@ -121,11 +142,15 @@ class PreprocessedPNGDataModule(LightningDataModule):
         self.pin_memory = pin_memory
         self.prefetch_factor = prefetch_factor
         self.dataloader_config = kwargs
+        self.train_sopuid_exclusions = _prepare_sopuid_exclusions(train_sopuid_exclusions)
+        self.val_sopuid_exclusions = _prepare_sopuid_exclusions(val_sopuid_exclusions)
+        self.test_sopuid_exclusions = _prepare_sopuid_exclusions(test_sopuid_exclusions)
 
     def create_dataset(
         self,
         target: PathLike,
         mode: Mode,
+        sopuid_exclusions: Set[str] = set(),
         **kwargs,
     ) -> MetadataDatasetWrapper:
         """
@@ -134,6 +159,7 @@ class PreprocessedPNGDataModule(LightningDataModule):
         Args:
             target: Path to the directory containing the preprocessed images.
             mode: The mode of the dataset. One of "train", "val", or "test".
+            sopuid_exclusions: Set of SOPInstanceUIDs to exclude out.
 
         Keyword Args:
             Forwarded to :class:`ImagePathDataset`.
@@ -146,7 +172,8 @@ class PreprocessedPNGDataModule(LightningDataModule):
             raise NotADirectoryError(target)  # pragma: no cover
 
         # Create a dataset of preprocessed images and apply the preprocessing metadata wrapper
-        images = target.rglob("*.png")
+        # NOTE: Preprocessed files are named as SOPInstanceUID.png
+        images = filter(lambda p: p.stem not in sopuid_exclusions, target.rglob("*.png"))
         dataset = ImagePathDataset(images, **kwargs)
         dataset = PreprocessingConfigMetadata(dataset)
 
@@ -218,7 +245,18 @@ class PreprocessedPNGDataModule(LightningDataModule):
         mode: Mode,
         **kwargs,
     ) -> List[MetadataDatasetWrapper]:
-        datasets = [self.create_dataset(inp, mode, **kwargs) for inp in inputs]
+        # Look up associated SOPInstanceUIDs to filter out
+        match mode:
+            case Mode.TRAIN:
+                sopuid_exclude = self.train_sopuid_exclusions
+            case Mode.VAL:
+                sopuid_exclude = self.val_sopuid_exclusions
+            case Mode.TEST:
+                sopuid_exclude = self.test_sopuid_exclusions
+            case _:
+                sopuid_exclude = set()
+
+        datasets = [self.create_dataset(inp, mode, sopuid_exclude, **kwargs) for inp in inputs]
         assert all(isinstance(ds, Sized) for ds in datasets)
         if not any(isinstance(ds, Sized) and len(ds) for ds in datasets):
             raise FileNotFoundError("Loaded empty dataset")
