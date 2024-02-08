@@ -301,6 +301,7 @@ class DicomTestFactory:
             metadata_filenames: Filenames for the manifest and annotation manifest CSV files.
             boxes_filename: Filename for the trace manifest CSV file.
             boxes_extra_keys: Extra keys to include in the trace manifest CSV file.
+            datamodule_class: The specific :class:`PreprocessedPNGDataModule` class to use.
 
         Keyword Args:
             Forwarded to the :class:`PreprocessedPNGDataModule` constructor.
