@@ -13,6 +13,7 @@ from typing import (
     Sequence,
     Tuple,
     Type,
+    TypeVar,
     cast,
 )
 
@@ -45,6 +46,9 @@ else:
         from torch_dicom.preprocessing.datamodule import PreprocessedPNGDataModule
     except ImportError:
         PreprocessedPNGDataModule = None
+
+
+M = TypeVar("M", bound=PreprocessedPNGDataModule)
 
 
 def choose_modulus(val: int, choices: Sequence[Any]) -> Any:
@@ -286,8 +290,9 @@ class DicomTestFactory:
         },
         boxes_filename: Optional[str] = DEFAULT_TRACE_MANIFEST_FILENAME,
         boxes_extra_keys: Iterable[str] = DEFAULT_TRACE_EXTRA_KEYS,
+        datamodule_class: Type[M] = PreprocessedPNGDataModule,
         **kwargs,
-    ) -> PreprocessedPNGDataModule:
+    ) -> M:
         r"""Creates a :class:`PreprocessedPNGDataModule` using the factory.
 
         Args:
@@ -325,7 +330,7 @@ class DicomTestFactory:
         trace_manifest.to_csv(preprocessed_root / DEFAULT_TRACE_MANIFEST_FILENAME)
 
         # Create the data module
-        dm = PreprocessedPNGDataModule(
+        dm = datamodule_class(
             train_inputs=preprocessed_root,
             val_inputs=preprocessed_root,
             test_inputs=preprocessed_root,
@@ -339,7 +344,7 @@ class DicomTestFactory:
         if setup:
             dm.setup(stage="fit")
             dm.setup(stage="test")
-        return dm
+        return cast(M, dm)
 
 
 @dataclass
