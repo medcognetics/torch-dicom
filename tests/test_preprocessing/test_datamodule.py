@@ -176,6 +176,13 @@ class TestPreprocessedPNGDataModule:
         assert isinstance(loader, DataLoader)
         assert len(next(iter(loader))["img"]) == batch_size
 
+        # Check shuffling and train sampler
+        if fn == "train_dataloader":
+            b1 = next(iter(loader))
+            b2 = next(iter(loader))
+            assert b1["path"] != b2["path"]
+            assert isinstance(module.train_sampler, RandomSampler)
+
     def test_weighted_csv_sampler(self, preprocessed_data, manifest_csv, annotation_csv, roi_csv):
         boxes_filename = roi_csv.name
         metadata_filenames = {

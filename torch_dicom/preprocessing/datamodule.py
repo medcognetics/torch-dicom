@@ -287,7 +287,16 @@ class PreprocessedPNGDataModule(LightningDataModule):
                 # prepare training sampler
                 rank_zero_info("Preparing training samplers")
                 train_samplers = self._prepare_samplers(self.train_inputs, train_datasets, Mode.TRAIN)
-                self.train_sampler = ConcatSampler(train_samplers)
+                # if all datasets use simple random sampler, use a single random sampler.
+                # TODO: ConcatSampler will randomly sample from each dataset sequentially. Fix this so that samples
+                # are also random between datasets and not just within a dataset
+                all_simple_random_samplers = all(
+                    isinstance(sampler, RandomSampler) and len(sampler) == len(dataset)
+                    for sampler, dataset in zip(train_samplers, train_datasets)
+                )
+                self.train_sampler = (
+                    RandomSampler(self.dataset_train) if all_simple_random_samplers else ConcatSampler(train_samplers)
+                )
 
                 # prepare training batch sampler
                 self.train_batch_sampler = self.create_batch_sampler(
