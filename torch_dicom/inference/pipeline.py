@@ -259,21 +259,21 @@ class InferencePipeline(ABC):
         return transform
 
     @torch.no_grad()
-    def __iter__(
+    def __call__(
         self,
         use_bar: bool = True,
-        bar_description: str = "Processing",
+        desc: str = "Processing",
         **kwargs,
     ) -> Iterator[Tuple[Any, Dict[str, Any]]]:
         """
-        This method is an iterator that processes the dataset and yields predictions for each batch.
+        Returns an iterator that processes the dataset and yields predictions for each batch.
         It prepares the dataset and dataloader, and then iterates over the dataloader.
         For each batch, it transfers the batch to the device, generates predictions for each model,
         and yields the uncollated batch and predictions.
 
         Args:
             use_bar: Whether to use a progress bar. Default is True.
-            bar_description: Description for the progress bar. Default is "Processing".
+            desc: Description for the progress bar. Default is "Processing".
 
         Keyword Args:
             Forwarded to tqdm bar constructor.
@@ -286,9 +286,9 @@ class InferencePipeline(ABC):
 
         is_enumerated = isinstance(dataset, ConcatDataset)
         bar = tqdm(
-            total=len(dataset) * self.batch_size if is_enumerated else None,
+            total=len(dataset) if is_enumerated else None,
             disable=not use_bar,
-            desc=bar_description,
+            desc=desc,
             **kwargs,
         )
 
@@ -317,3 +317,7 @@ class InferencePipeline(ABC):
                     raise
 
         bar.close()
+
+    def __iter__(self) -> Iterator[Tuple[Any, Dict[str, Any]]]:
+        r"""Alias for :meth:`__call__`."""
+        return self.__call__()
