@@ -119,3 +119,33 @@ class TestLightningInferencePipeline:
             assert isinstance(example, dict)
             assert isinstance(pred, dict)
             assert isinstance(pred["pred"], Tensor)
+
+    @pytest.mark.parametrize(
+        "use_bar, enumerate_inputs, description",
+        [
+            (True, True, "Processing"),
+            (False, False, "Running"),
+        ],
+    )
+    def test_tqdm_bar(self, mocker, file_iterator, use_bar, enumerate_inputs, description):
+        mocked_tqdm = mocker.patch("torch_dicom.inference.pipeline.tqdm")
+        model = Model()
+        dicom_files = list(file_iterator)
+        pipeline = LightningInferencePipeline(
+            dicom_paths=iter(dicom_files),
+            models=[model],
+            skip_errors=False,
+            enumerate_inputs=enumerate_inputs,
+        )
+
+        list(pipeline(use_bar=use_bar, desc=description))
+        mocked_tqdm.assert_called_once()
+        mocked_tqdm.assert_called_with(
+            total=len(dicom_files) if enumerate_inputs else None,
+            desc=description,
+            disable=not use_bar,
+        )
+
+        mocked_bar = mocked_tqdm()
+        assert mocked_bar.update.call_count == len(dicom_files)
+        mocked_bar.close.assert_called_once()
