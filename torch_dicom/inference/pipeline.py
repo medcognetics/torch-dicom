@@ -64,6 +64,11 @@ class InferencePipeline(ABC):
         skip_errors: Whether to skip errors during processing.
         volume_handler: Handler for volume data.
         dataloader_kwargs: Additional arguments for the DataLoader.
+        models: List of models to be used for inference.
+        normalize: If True, the image is normalized to [0, 1].
+        voi_lut: If True, the VOI LUT is applied to the image.
+        inversion: If True, apply PhotometricInterpretation inversion.
+        rescale: If True, apply rescale from metadata.
     """
 
     # Known input sources
@@ -86,6 +91,10 @@ class InferencePipeline(ABC):
     volume_handler: VolumeHandler = ReduceVolume()
     dataloader_kwargs: Dict[str, Any] = field(default_factory=dict)
     models: List[nn.Module] = field(default_factory=list)
+    normalize: bool = True
+    voi_lut: bool = True
+    inversion: bool = True
+    rescale: bool = True
 
     def __post_init__(self):
         if not self.models:
@@ -183,6 +192,10 @@ class InferencePipeline(ABC):
                 skip_errors=self.skip_errors,
                 volume_handler=self.volume_handler,
                 transform=self.transform,
+                normalize=self.normalize,
+                voi_lut=self.voi_lut,
+                inversion=self.inversion,
+                rescale=self.rescale,
                 **kwargs,
             )
             yield ds
