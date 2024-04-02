@@ -159,15 +159,23 @@ class InferencePipeline(ABC):
             *self.custom_inputs,
         ]
 
-        # If enumerate_inputs is True and every dataset has a length, we will return a ConcatDataset
-        #
-        # If enumerate_inputs is False or inputs were given that don't have an associated map-style Dataset,
-        # we will return a ChainDataset
-        return (
-            ConcatDataset(datasets)
-            if self.enumerate_inputs and not any(isinstance(ds, IterableDataset) for ds in datasets)
-            else ChainDataset(datasets)
-        )
+        # If no datasets are IterableDataset, return a ConcatDataset
+        if not any(isinstance(ds, IterableDataset) for ds in datasets):
+            return ConcatDataset(datasets)
+        # If all datasets are IterableDataset we will return a ChainDataset
+        elif all(isinstance(ds, IterableDataset) for ds in datasets):
+            return ChainDataset(datasets)
+        # Otherwise we cannot currently handle a mix of map-style and iterable-style datasets.
+        # ConcatDataset specifically checks for no IterableDataset and ChainDataset specifically checks for all IterableDataset.
+        # TODO: Maybe there is a way to patch around this so that isinstance checks pass?
+        else:
+            raise ValueError(
+                f"{self.__class__.__name__} does not support mixing map-style and iterable-style datasets. "
+                "To resolve this do one of the following:\n"
+                "1. Set `enumerate_inputs=False`, in which case only iterable-style datasets will be used.\n"
+                "2. Do not pass `dicoms`, `tensors`, or `images` as inputs, in which case any value of `enumerate_inputs` is valid.\n"
+                "3. Handle your inputs manually with `custom_inputs`.\n"
+            )
 
     def _prepare_dicom_datasets(self, **kwargs) -> Iterator[Dataset]:
         if self.dicom_paths:
@@ -182,6 +190,10 @@ class InferencePipeline(ABC):
                 iter(self.dicom_paths),
                 volume_handler=self.volume_handler,
                 transform=self.transform,
+                normalize=self.normalize,
+                voi_lut=self.voi_lut,
+                inversion=self.inversion,
+                rescale=self.rescale,
                 **kwargs,
             )
             yield ds
