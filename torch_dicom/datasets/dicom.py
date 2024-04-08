@@ -673,8 +673,9 @@ class DicomINRDataset(Dataset):
             f"V={self.coordinate_length}, device={self.device})"
         )
 
+    @staticmethod
     @torch.no_grad()
-    def create_grid(self, x: Tensor) -> Tensor:
+    def create_grid(x: Tensor) -> Tensor:
         r"""Creates a coordinate grid for the input tensor.
 
         The coordinate grid will be normalized on the interval :math:`[-1, 1]` for each dimension.
