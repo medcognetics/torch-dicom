@@ -557,9 +557,11 @@ class INRExample(DicomExample):
 
 class DicomINRDataset(Dataset):
     r"""Dataset that iterates over examples for training an implicit neural representation (INR) of
-    a DICOM image or volume. The pixel data in the output will be casted to a torchvision ``Image`` or ``Video``
-    depending on if the input is 2D or 3D. Position data will be returned as coordinates normalized to the
-    interval :math:`[-1, 1]`.
+    a DICOM image or volume. Position data will be returned as coordinates normalized to the interval
+    :math:`[-1, 1]`.
+
+    To customize coordinate grid structure, override :meth:`create_grid`, or apply post-processing to
+    the output of the dataset.
 
     Args:
         target: Target DICOM file.
