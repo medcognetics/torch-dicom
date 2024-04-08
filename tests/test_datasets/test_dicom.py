@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+import math
 from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
@@ -12,12 +13,21 @@ from dicom_utils.dicom import Dicom
 from dicom_utils.dicom_factory import DicomFactory
 from dicom_utils.volume import KeepVolume, ReduceVolume
 from torch import Tensor
+from torch.testing import assert_close
 from torch.utils.data import DataLoader
 from torchvision.transforms.v2 import ColorJitter
 from torchvision.tv_tensors import Image, Video
 
 import torch_dicom
-from torch_dicom.datasets.dicom import DUMMY_PATH, DicomInput, DicomPathDataset, DicomPathInput, collate_fn, uncollate
+from torch_dicom.datasets.dicom import (
+    DUMMY_PATH,
+    DicomInput,
+    DicomINRDataset,
+    DicomPathDataset,
+    DicomPathInput,
+    collate_fn,
+    uncollate,
+)
 
 
 class TestUncollate:
@@ -315,3 +325,47 @@ class TestDicomPathDataset(TestDicomPathInput):
             assert call.kwargs["voi_lut"] == voi_lut
             assert call.kwargs["volume_handler"] == volume_handler
             assert call.kwargs["inversion"] == inversion
+
+
+class TestDicomINRDataset:
+    TEST_CLASS: ClassVar = DicomINRDataset
+
+    @pytest.fixture(params=["2D", "3D"])
+    def dicom(self, request):
+        fact = DicomFactory(Modality="MG", Rows=64, Columns=32, NumberOfFrames=5 if request.param == "3D" else 1)
+        return fact(seed=0)
+
+    @pytest.fixture
+    def dicom_path(self, tmp_path, dicom):
+        path = tmp_path / "dicom.dcm"
+        dicom.save_as(path)
+        return path
+
+    @pytest.mark.parametrize("chunk_size", [1, 128])
+    def test_len(self, dicom, dicom_path, chunk_size):
+        H = dicom.Rows
+        W = dicom.Columns
+        D = dicom.NumberOfFrames
+        ds = self.TEST_CLASS(dicom_path, chunk_size=chunk_size)
+        assert len(ds) == math.ceil(H * W * D / chunk_size)
+
+    @pytest.mark.parametrize("chunk_size", [50, 128])
+    def test_getitem(self, dicom, dicom_path, chunk_size):
+        ds = self.TEST_CLASS(dicom_path, chunk_size=chunk_size)
+        flat_img = torch.cat([example["img"] for example in ds], dim=1)
+        flat_grid = torch.cat([example["grid"] for example in ds], dim=1)
+
+        img = ds.restore_shape(flat_img.unsqueeze(0)).squeeze(0)
+        grid = ds.restore_shape(flat_grid.unsqueeze(0)).squeeze(0)
+
+        N = dicom.NumberOfFrames
+        H = dicom.Rows
+        W = dicom.Columns
+        if N > 1:
+            assert img.shape == (1, N, H, W)
+            assert grid.shape == (3, N, H, W)
+        else:
+            assert img.shape == (1, H, W)
+            assert grid.shape == (2, H, W)
+
+        assert_close(grid.sum(), grid.new_tensor(0), rtol=0, atol=1e-3)
