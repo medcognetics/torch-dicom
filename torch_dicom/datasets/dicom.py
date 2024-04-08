@@ -630,8 +630,8 @@ class DicomINRDataset(Dataset):
 
         # Flatten image and grid to shape (N, C)
         self._spatial_size = tuple(img.shape[:-1])
-        self.img = img.flatten(end_dim=-2)
-        self.grid = grid.flatten(end_dim=-2)
+        self.img = img.flatten(end_dim=-2).to(device)
+        self.grid = grid.flatten(end_dim=-2).to(device)
 
         # Pre-compute last chunk if needed (wraps around)
         if self.spatial_numel % self.chunk_size != 0:
