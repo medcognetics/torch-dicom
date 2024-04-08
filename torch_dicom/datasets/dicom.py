@@ -563,6 +563,10 @@ class DicomINRDataset(Dataset):
     To customize coordinate grid structure, override :meth:`create_grid`, or apply post-processing to
     the output of the dataset.
 
+    .. note::
+        To ensure maximum speed this dataset does not copy data. Any in-place modifications to the
+        outputs of this dataset may affect the original data.
+
     Args:
         target: Target DICOM file.
         chunk_size: Size of the chunk to be returned.
@@ -572,6 +576,8 @@ class DicomINRDataset(Dataset):
         voi_lut: If True, the VOI LUT is applied to the image.
         inversion: If True, apply PhotometricInterpretation inversion.
         rescale: If True, apply rescale from metadata.
+        device: Device to use for processing. Can be used to initialize data on the same device
+            as will be used for training.
 
     Shapes:
         - ``'img'``: :math:`(C, L)` where :math:`L` is the chunk size.
@@ -588,6 +594,7 @@ class DicomINRDataset(Dataset):
         voi_lut: bool = True,
         rescale: bool = True,
         inversion: bool = True,
+        device: torch.device = torch.device("cpu"),
     ):
         self.target = target
         self.chunk_size = chunk_size
@@ -597,8 +604,9 @@ class DicomINRDataset(Dataset):
         self.voi_lut = voi_lut
         self.rescale = rescale
         self.inversion = inversion
+        self.device = device
 
-        # Load the DICOM
+        # Load the example / DICOM
         self.example = cast(
             INRExample,
             DicomPathInput.load_example(
@@ -612,11 +620,58 @@ class DicomINRDataset(Dataset):
                 self.rescale,
             ),
         )
+        img = self.example.pop("img")
+
+        # Convert image to channels last
+        img = img.movedim(0, -1)
+
         # Create the coordinate grid
-        self.example["grid"] = self.create_grid(self.example["img"])
+        grid = self.create_grid(img)
+
+        # Flatten image and grid to shape (N, C)
+        self._spatial_size = tuple(img.shape[:-1])
+        self.img = img.flatten(end_dim=-2)
+        self.grid = grid.flatten(end_dim=-2)
+
+        # Pre-compute last chunk if needed (wraps around)
+        if self.spatial_numel % self.chunk_size != 0:
+            # We don't want to just move the start backwards, as this would complicate using this dataset
+            # in inference mode. The solution should ensure that we can slice the output data and get
+            # the set of coords representing a full input image/volume.
+            idx = len(self) - 1
+            start = idx * self.chunk_size
+            end = (idx + 1) * self.chunk_size
+            self.last_img_chunk = torch.cat(
+                [self.img[start:end, ...], self.img[: end - self.chunk_size, ...]],
+                dim=0,
+            )
+            self.last_grid_chunk = torch.cat(
+                [self.grid[start:end, ...], self.grid[: end - self.chunk_size, ...]],
+                dim=0,
+            )
+        else:
+            self.last_img_chunk = self.last_grid_chunk = None
+
+    @property
+    def coordinate_length(self) -> int:
+        r"""Returns the length of a single coordinate in the grid."""
+        return self.grid.shape[-1]
+
+    @property
+    def spatial_size(self) -> Tuple[int, ...]:
+        r"""Returns the spatial size of the image or volume."""
+        return self._spatial_size
+
+    @property
+    def spatial_numel(self) -> int:
+        r"""Returns the number of spatial elements in the image or volume."""
+        return self.grid.shape[0]
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}(target={self.target}, img_size={self.img_size})"
+        return (
+            f"{self.__class__.__name__}(target={self.target}, spatial_size={self.spatial_size}, "
+            f"V={self.coordinate_length}, device={self.device})"
+        )
 
     @torch.no_grad()
     def create_grid(self, x: Tensor) -> Tensor:
@@ -628,14 +683,15 @@ class DicomINRDataset(Dataset):
             x: Input tensor to create a grid for.
 
         Shapes:
-            - ``x``: :math:`(C, H, W)` for 2D images, :math:`(C, D, H, W)` for 3D volumes.
-            - Output: :math:`(2, H, W)` for 2D images, :math:`(3, D, H, W)` for 3D volumes.
+            - ``x``: :math:`(H, W, C)` for 2D images, :math:`(D, H, W, C)` for 3D volumes.
+            - Output: :math:`(H, W, 2)` for 2D images, :math:`(D, H, W, 3)` for 3D volumes.
         """
         grid = torch.stack(
-            torch.meshgrid(*[torch.linspace(-1, 1, size, device=x.device) for size in x.shape[1:]], indexing="ij")
+            torch.meshgrid(*[torch.linspace(-1, 1, size, device=x.device) for size in x.shape[:-1]], indexing="ij"),
+            dim=-1,
         )
-        assert grid.shape[0] == x.ndim - 1
-        assert grid.shape[1:] == x.shape[1:]
+        assert grid.shape[-1] == x.ndim - 1
+        assert grid.shape[:-1] == x.shape[:-1]
         return grid
 
     def restore_shape(self, x: Tensor) -> Tensor:
@@ -649,53 +705,38 @@ class DicomINRDataset(Dataset):
             x: The flattened tensor to be reshaped.
 
         Shapes:
-            - ``x``: :math:`(N, C, ...)`
-            - Output: :math:`(N, C, H, W)` for 2D images, :math:`(N, C, D, H, W)` for 3D volumes.
+            - ``x``: :math:`(N, ..., C)`
+            - Output: :math:`(N, H, W, C)` for 2D images, :math:`(N, D, H, W, C)` for 3D volumes.
 
         Returns:
             Tensor: The reshaped tensor with its original dimensions restored.
         """
-        shape = self.example["img"].shape[1:]
-        numel = self.example["img"][0].numel()
-        N, C = x.shape[:2]
-        return x[..., :numel].view(N, C, *shape)
+        N, *_, C = x.shape
+        return x[..., : self.spatial_numel, :].view(N, *self.spatial_size, C)
 
     def __len__(self) -> int:
-        return int(math.ceil(self.example["grid"][0].numel() / self.chunk_size))
+        return int(math.ceil(self.grid[..., 0].numel() / self.chunk_size))
 
     def __getitem__(self, idx: int) -> INRExample:
-        img: Tensor = self.example["img"]
-        grid: Tensor = self.example["grid"]
+        if idx >= len(self) or idx <= -len(self):
+            raise IndexError(f"Index {idx} is out of bounds for dataset length {len(self)}")
+        if idx < 0:
+            idx += len(self)
 
-        # Flatten dims 1 to N, avoiding a copy with .view()
-        C_img = img.shape[0]
-        C_grid = grid.shape[0]
-        img = img.view(C_img, -1)
-        grid = grid.view(C_grid, -1)
-
-        # Create staring example that is deepcopy of non-image data
-        example = deepcopy({k: v for k, v in self.example.items() if k != "img" and k != "grid"})
+        # Create staring example that is copy of non-image data
+        example = copy({k: v for k, v in self.example.items() if k != "img" and k != "grid"})
 
         # Select index range for this example
         start = idx * self.chunk_size
         end = (idx + 1) * self.chunk_size
 
         # Handle ragged chunks.
-        if end > (L := img.shape[1]):
-            # We don't want to just move the start backwards, as this would complicate using this dataset
-            # in inference mode. The solution should ensure that we can slice the output data and get
-            # the set of coords representing a full input image/volume.
-            img_chunk = torch.cat(
-                [img[..., start:L], img[..., : end - L]],
-                dim=-1,
-            )
-            grid_chunk = torch.cat(
-                [grid[..., start:L], grid[..., : end - L]],
-                dim=-1,
-            )
+        if idx == len(self) - 1 and self.last_img_chunk is not None:
+            img_chunk = self.last_img_chunk
+            grid_chunk = self.last_grid_chunk
         else:
-            img_chunk = img[..., start:end].clone()
-            grid_chunk = grid[..., start:end].clone()
+            img_chunk = self.img[start:end, ...]
+            grid_chunk = self.grid[start:end, ...]
 
         example["img"] = img_chunk
         example["grid"] = grid_chunk

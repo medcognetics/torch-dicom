@@ -4,6 +4,7 @@ import math
 from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
+from timeit import timeit
 from typing import Any, ClassVar, Dict, cast
 
 import pytest
@@ -352,8 +353,8 @@ class TestDicomINRDataset:
     @pytest.mark.parametrize("chunk_size", [50, 128])
     def test_getitem(self, dicom, dicom_path, chunk_size):
         ds = self.TEST_CLASS(dicom_path, chunk_size=chunk_size)
-        flat_img = torch.cat([example["img"] for example in ds], dim=1)
-        flat_grid = torch.cat([example["grid"] for example in ds], dim=1)
+        flat_img = torch.cat([example["img"] for example in ds], dim=0)
+        flat_grid = torch.cat([example["grid"] for example in ds], dim=0)
 
         img = ds.restore_shape(flat_img.unsqueeze(0)).squeeze(0)
         grid = ds.restore_shape(flat_grid.unsqueeze(0)).squeeze(0)
@@ -362,10 +363,18 @@ class TestDicomINRDataset:
         H = dicom.Rows
         W = dicom.Columns
         if N > 1:
-            assert img.shape == (1, N, H, W)
-            assert grid.shape == (3, N, H, W)
+            assert img.shape == (N, H, W, 1)
+            assert grid.shape == (N, H, W, 3)
         else:
-            assert img.shape == (1, H, W)
-            assert grid.shape == (2, H, W)
+            assert img.shape == (H, W, 1)
+            assert grid.shape == (H, W, 2)
 
         assert_close(grid.sum(), grid.new_tensor(0), rtol=0, atol=1e-3)
+
+    @pytest.mark.ci_skip
+    @pytest.mark.parametrize("chunk_size", [50, 128])
+    def test_speed(self, dicom_path, chunk_size):
+        ds = self.TEST_CLASS(dicom_path, chunk_size=chunk_size)
+        number = 100
+        t = timeit(lambda: list(ds), number=100) / number
+        assert t <= 1e-2
