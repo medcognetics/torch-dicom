@@ -7,6 +7,7 @@ import torch.nn as nn
 from torch import Tensor
 
 from torch_dicom.inference.lightning import LightningInferencePipeline
+from torch_dicom.inference.pipeline import DicomInput, DicomPathDataset, DicomPathInput
 
 
 class Model(pl.LightningModule):
@@ -149,3 +150,73 @@ class TestLightningInferencePipeline:
         mocked_bar = mocked_tqdm()
         assert mocked_bar.update.call_count == len(dicom_files)
         mocked_bar.close.assert_called_once()
+
+    @pytest.mark.parametrize(
+        "enumerate_inputs, has_nonpaths",
+        [
+            pytest.param(False, False),
+            pytest.param(False, True),
+            pytest.param(True, False),
+            pytest.param(True, True, marks=pytest.mark.xfail(raises=ValueError, strict=True)),
+        ],
+    )
+    def test_error_on_mixed_dataset_types(
+        self, dicoms, file_iterator, tensors, tensor_files, images, image_files, enumerate_inputs, has_nonpaths
+    ):
+        model = Model()
+        dicom_files = list(file_iterator)
+        tensor_files = list(tensor_files)
+        image_files = list(image_files)
+        pipeline = LightningInferencePipeline(
+            dicom_paths=iter(dicom_files),
+            image_paths=iter(image_files),
+            tensor_paths=iter(tensor_files),
+            dicoms=iter(dicoms) if has_nonpaths else [],
+            images=iter(images) if has_nonpaths else [],
+            tensors=iter(tensors) if has_nonpaths else [],
+            models=[model],
+            skip_errors=False,
+            enumerate_inputs=enumerate_inputs,
+        )
+        list(pipeline)
+
+    @pytest.mark.parametrize("enumerate_inputs", [False, True])
+    @pytest.mark.parametrize(
+        "arg, value",
+        [
+            ("normalize", True),
+            ("voi_lut", False),
+            ("inversion", False),
+            ("rescale", False),
+        ],
+    )
+    def test_forward_dicom_args(self, mocker, dicoms, file_iterator, transform, arg, value, enumerate_inputs):
+        # Setup mocks
+        if enumerate_inputs:
+            mock1 = mocker.Mock(wraps=DicomPathDataset)
+            mocker.patch("torch_dicom.inference.pipeline.DicomPathDataset", mock1, spec_set=DicomPathDataset)
+            mock2 = None
+        else:
+            mock1 = mocker.Mock(wraps=DicomPathInput)
+            mocker.patch("torch_dicom.inference.pipeline.DicomPathInput", mock1, spec_set=DicomPathInput)
+            mock2 = mocker.Mock(wraps=DicomInput)
+            mocker.patch("torch_dicom.inference.pipeline.DicomInput", mock2, spec_set=DicomInput)
+
+        model = Model()
+        files = list(file_iterator)
+        pipeline = LightningInferencePipeline(
+            dicom_paths=iter(files),
+            dicoms=iter(dicoms) if not enumerate_inputs else [],
+            models=[model],
+            skip_errors=False,
+            transform=transform,
+            enumerate_inputs=enumerate_inputs,
+            **{arg: value},
+        )
+        list(pipeline)
+
+        mock1.assert_called()
+        assert mock1.call_args.kwargs[arg] == value
+        if mock2 is not None:
+            mock2.assert_called()
+            assert mock2.call_args.kwargs[arg] == value
