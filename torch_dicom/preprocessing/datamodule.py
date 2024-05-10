@@ -362,7 +362,9 @@ class PreprocessedPNGDataModule(LightningDataModule):
 
     def val_dataloader(self, *args: Any, **kwargs: Any) -> Union[DataLoader, List[DataLoader]]:
         """The val dataloader."""
-        if not hasattr(self, "dataset_val"):
+        if not self.val_inputs:
+            return DataLoader(cast(Any, []))
+        elif not hasattr(self, "dataset_val"):
             raise RuntimeError("setup() must be called before val_dataloader()")  # pragma: no cover
         return self._data_loader(self.dataset_val, sampler=self.val_sampler, batch_sampler=self.val_batch_sampler)
 

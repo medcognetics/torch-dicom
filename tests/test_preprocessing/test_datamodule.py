@@ -322,3 +322,10 @@ class TestPreprocessedPNGDataModule:
         loader = getattr(module, fn)()
         assert isinstance(loader, DataLoader)
         assert len(loader) == 1
+
+    def test_no_validation_data(self, preprocessed_data, datamodule_with_metadata):
+        module: PreprocessedPNGDataModule = datamodule_with_metadata(preprocessed_data)
+        module.setup(stage="fit")
+        loader = module.val_dataloader()
+        assert isinstance(loader, DataLoader)
+        assert len(loader) == 0

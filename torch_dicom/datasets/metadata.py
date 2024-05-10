@@ -32,9 +32,7 @@ def get_sopuid_key_from_example(example: Dict[str, Any]) -> Optional[Any]:
     key = (
         example["record"].SOPInstanceUID
         if "record" in example
-        else example["path"].stem
-        if "path" in example and example["path"] is not None
-        else None
+        else example["path"].stem if "path" in example and example["path"] is not None else None
     )
     return key
 
@@ -61,6 +59,7 @@ class MetadataInputWrapper(IterableDataset, ABC, SupportsTransform):
         dataset: Iterable dataset to wrap.
         metadata: Path to a file with metadata.
     """
+
     transform: Optional[Transform]
 
     def __init__(self, dataset: Union[Dataset, IterableDataset], metadata: Path):
@@ -117,6 +116,7 @@ class MetadataDatasetWrapper(Dataset, ABC, SupportsTransform):
         dataset: Dataset to wrap.
         metadata: Path to a file with metadata.
     """
+
     transform: Optional[Transform]
 
     def __init__(self, dataset: Dataset, metadata: Path):
@@ -215,9 +215,7 @@ class PreprocessingConfigMetadata(MetadataDatasetWrapper):
         path = (
             example["path"]
             if "path" in example and example["path"] is not None
-            else example["record"].path
-            if "record" in example
-            else None
+            else example["record"].path if "record" in example else None
         )
         if path is None:
             raise KeyError(f"Unable to find path in example {example}")  # pragma: no cover
@@ -254,6 +252,7 @@ class BoundingBoxMetadata(MetadataDatasetWrapper):
         * ``boxes`` - :math:`(N, 4)` where :math:`N` is the number of bounding boxes.
         * Extra keys will be lists of length :math:`N`.
     """
+
     metadata: pd.DataFrame
 
     def __init__(
@@ -352,6 +351,7 @@ class DataFrameMetadata(MetadataDatasetWrapper):
         metadata: Path to a file with metadata.
         dest_key: Key under which to add the metadata to the example.
     """
+
     metadata: pd.DataFrame
 
     def __init__(self, dataset: Dataset, metadata: Path, dest_key: str = "metadata"):
