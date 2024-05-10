@@ -99,6 +99,7 @@ class DicomTestFactory:
         num_studies: Number of studies to generate.
         seed: Seed to use when generating DICOMs.
     """
+
     root: Path
     dicom_size: Tuple[int, int] = (64, 32)
     num_studies: int = 3
@@ -358,6 +359,7 @@ class MammogramTestFactory(DicomTestFactory):
         num_studies: Number of studies to generate.
         seed: Seed to use when generating DICOMs.
     """
+
     dicom_factory: ClassVar[Type[CompleteMammographyStudyFactory]] = CompleteMammographyStudyFactory
 
     def iterate_dicoms(self, **kwargs) -> Iterator[pydicom.Dataset]:

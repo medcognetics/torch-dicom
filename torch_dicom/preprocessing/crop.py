@@ -33,8 +33,7 @@ def _validate_coords(
     coords: Tensor,
     bounds: Tensor,
     img_size: Union[Tensor, Tuple[int, int]],
-) -> Tuple[Tensor, Tensor, Tensor]:
-    ...
+) -> Tuple[Tensor, Tensor, Tensor]: ...
 
 
 @overload
@@ -42,8 +41,7 @@ def _validate_coords(
     coords: Tensor,
     bounds: Tensor,
     img_size: None,
-) -> Tuple[Tensor, Tensor, None]:
-    ...
+) -> Tuple[Tensor, Tensor, None]: ...
 
 
 def _validate_coords(
@@ -102,6 +100,7 @@ class Crop:
         - Input: :math:`(N, *, H, W)`
         - Output: :math:`(N, *, H', W')`
     """
+
     img_key: str = "img"
     bounds_key: str = "crop_bounds"
     img_dest_key: Optional[str] = None
@@ -326,6 +325,7 @@ class ROICrop(Crop):
         - Input: :math:`(C, H, W)`
         - Output: :math:`(C, H', W')`
     """
+
     path: Path
     min_size: Tuple[int, int] = (256, 256)
     roi_expansion: float = 1.5
@@ -587,6 +587,7 @@ class TileCrop(Crop):
         - Input: :math:`(N, *, H, W)`
         - Output: :math:`(N, *, D, H', W')`
     """
+
     size: Tuple[int, int] = (256, 256)
     overlap: Tuple[float, float] = (0.2, 0.2)
 

@@ -91,6 +91,7 @@ class PreprocessingPipeline:
         use_bar: Whether to use a progress bar for the output threads.
 
     """
+
     dicom_paths: Iterable[Path] = field(default_factory=list)
     dicoms: Iterable[Dicom] = field(default_factory=list)
 
