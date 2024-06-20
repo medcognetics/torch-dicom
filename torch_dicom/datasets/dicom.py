@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import logging
+import math
 import warnings
 from copy import copy, deepcopy
 from dataclasses import is_dataclass, replace
@@ -29,9 +30,9 @@ import torch
 import torch.nn.functional as F
 from dicom_utils.container import DicomImageFileRecord, FileRecord, RecordCreator
 from dicom_utils.dicom import Dicom, read_dicom_image
-from dicom_utils.volume import ReduceVolume, VolumeHandler
+from dicom_utils.volume import KeepVolume, ReduceVolume, VolumeHandler
 from torch import Tensor
-from torch.utils.data import IterableDataset, default_collate, get_worker_info
+from torch.utils.data import Dataset, IterableDataset, default_collate, get_worker_info
 from torch.utils.data._utils.collate import collate, default_collate_fn_map
 from torchvision.tv_tensors import Image, Video
 
@@ -548,3 +549,200 @@ class DicomPathDataset(PathDataset, SupportsTransform):
         return DicomPathInput.load_example(
             path, img_size, transform, volume_handler, normalize, voi_lut, inversion, rescale
         )
+
+
+class INRExample(DicomExample):
+    grid: Tensor
+
+
+class DicomINRDataset(Dataset):
+    r"""Dataset that iterates over examples for training an implicit neural representation (INR) of
+    a DICOM image or volume. Position data will be returned as coordinates normalized to the interval
+    :math:`[-1, 1]`.
+
+    To customize coordinate grid structure, override :meth:`create_grid`, or apply post-processing to
+    the output of the dataset.
+
+    .. note::
+        To ensure maximum speed this dataset does not copy data. Any in-place modifications to the
+        outputs of this dataset may affect the original data.
+
+    Args:
+        target: Target DICOM file.
+        chunk_size: Size of the chunk to be returned.
+        img_size: Size of the image to be returned. If None, the original image size is returned.
+        volume_handler: Volume handler to be used to load the DICOM image.
+        normalize: If True, the image is normalized to [0, 1].
+        voi_lut: If True, the VOI LUT is applied to the image.
+        inversion: If True, apply PhotometricInterpretation inversion.
+        rescale: If True, apply rescale from metadata.
+        device: Device to use for processing. Can be used to initialize data on the same device
+            as will be used for training.
+
+    Shapes:
+        - ``'img'``: :math:`(C, L)` where :math:`L` is the chunk size.
+        - ``'grid'``: :math:`(2, L)` for 2D images, :math:`(3, L)` for 3D volumes.
+    """
+
+    def __init__(
+        self,
+        target: Path,
+        chunk_size: int,
+        img_size: Optional[Tuple[int, int]] = None,
+        volume_handler: VolumeHandler = KeepVolume(),
+        normalize: bool = True,
+        voi_lut: bool = True,
+        rescale: bool = True,
+        inversion: bool = True,
+        device: torch.device = torch.device("cpu"),
+    ):
+        self.target = target
+        self.chunk_size = chunk_size
+        self.img_size = img_size
+        self.volume_handler = volume_handler
+        self.normalize = normalize
+        self.voi_lut = voi_lut
+        self.rescale = rescale
+        self.inversion = inversion
+        self.device = device
+
+        # Load the example / DICOM
+        self.example = cast(
+            INRExample,
+            DicomPathInput.load_example(
+                self.target,
+                self.img_size,
+                None,
+                self.volume_handler,
+                self.normalize,
+                self.voi_lut,
+                self.inversion,
+                self.rescale,
+            ),
+        )
+        img = self.example.pop("img")
+
+        # Convert image to channels last
+        img = img.movedim(0, -1)
+
+        # Create the coordinate grid
+        grid = self.create_grid(img)
+
+        # Flatten image and grid to shape (N, C)
+        self._spatial_size = tuple(img.shape[:-1])
+        self.img = img.flatten(end_dim=-2).to(device)
+        self.grid = grid.flatten(end_dim=-2).to(device)
+
+        # Pre-compute last chunk if needed (wraps around)
+        if self.spatial_numel % self.chunk_size != 0:
+            # We don't want to just move the start backwards, as this would complicate using this dataset
+            # in inference mode. The solution should ensure that we can slice the output data and get
+            # the set of coords representing a full input image/volume.
+            idx = len(self) - 1
+            start = idx * self.chunk_size
+            end = (idx + 1) * self.chunk_size
+            self.last_img_chunk = torch.cat(
+                [self.img[start:end, ...], self.img[: end - self.chunk_size, ...]],
+                dim=0,
+            )
+            self.last_grid_chunk = torch.cat(
+                [self.grid[start:end, ...], self.grid[: end - self.chunk_size, ...]],
+                dim=0,
+            )
+        else:
+            self.last_img_chunk = self.last_grid_chunk = None
+
+    @property
+    def coordinate_length(self) -> int:
+        r"""Returns the length of a single coordinate in the grid."""
+        return self.grid.shape[-1]
+
+    @property
+    def spatial_size(self) -> Tuple[int, ...]:
+        r"""Returns the spatial size of the image or volume."""
+        return self._spatial_size
+
+    @property
+    def spatial_numel(self) -> int:
+        r"""Returns the number of spatial elements in the image or volume."""
+        return self.grid.shape[0]
+
+    def __repr__(self) -> str:
+        return (
+            f"{self.__class__.__name__}(target={self.target}, spatial_size={self.spatial_size}, "
+            f"V={self.coordinate_length}, device={self.device})"
+        )
+
+    @staticmethod
+    @torch.no_grad()
+    def create_grid(x: Tensor) -> Tensor:
+        r"""Creates a coordinate grid for the input tensor.
+
+        The coordinate grid will be normalized on the interval :math:`[-1, 1]` for each dimension.
+
+        Args:
+            x: Input tensor to create a grid for.
+
+        Shapes:
+            - ``x``: :math:`(H, W, C)` for 2D images, :math:`(D, H, W, C)` for 3D volumes.
+            - Output: :math:`(H, W, 2)` for 2D images, :math:`(D, H, W, 3)` for 3D volumes.
+        """
+        grid = torch.stack(
+            torch.meshgrid(*[torch.linspace(-1, 1, size, device=x.device) for size in x.shape[:-1]], indexing="ij"),
+            dim=-1,
+        )
+        assert grid.shape[-1] == x.ndim - 1
+        assert grid.shape[:-1] == x.shape[:-1]
+        return grid
+
+    def restore_shape(self, x: Tensor) -> Tensor:
+        """Restores the shape of a flattened tensor to its original dimensions based on the example.
+
+        This method is used to reshape tensors that have been flattened for processing back to their
+        original shape, allowing them to be used in further operations or visualizations in their
+        intended form.
+
+        Args:
+            x: The flattened tensor to be reshaped.
+
+        Shapes:
+            - ``x``: :math:`(N, ..., C)`
+            - Output: :math:`(N, H, W, C)` for 2D images, :math:`(N, D, H, W, C)` for 3D volumes.
+
+        Returns:
+            Tensor: The reshaped tensor with its original dimensions restored.
+        """
+        N, *_, C = x.shape
+        return x[..., : self.spatial_numel, :].view(N, *self.spatial_size, C)
+
+    def __len__(self) -> int:
+        return int(math.ceil(self.grid[..., 0].numel() / self.chunk_size))
+
+    def __getitem__(self, idx: int) -> INRExample:
+        if idx >= len(self) or idx <= -len(self):
+            raise IndexError(f"Index {idx} is out of bounds for dataset length {len(self)}")
+        if idx < 0:
+            idx += len(self)
+
+        # Create staring example that is copy of non-image data
+        example = copy({k: v for k, v in self.example.items() if k != "img" and k != "grid"})
+
+        # Select index range for this example
+        start = idx * self.chunk_size
+        end = (idx + 1) * self.chunk_size
+
+        # Handle ragged chunks.
+        if idx == len(self) - 1 and self.last_img_chunk is not None:
+            img_chunk = self.last_img_chunk
+            grid_chunk = self.last_grid_chunk
+        else:
+            img_chunk = self.img[start:end, ...]
+            grid_chunk = self.grid[start:end, ...]
+
+        example["img"] = img_chunk
+        example["grid"] = grid_chunk
+        return cast(INRExample, example)
+
+    def __iter__(self) -> Iterator[INRExample]:
+        for idx in range(len(self)):
+            yield self[idx]

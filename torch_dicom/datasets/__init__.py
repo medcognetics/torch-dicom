@@ -2,7 +2,16 @@
 # -*- coding: utf-8 -*-
 
 from .chain import AggregateDataset, AggregateInput
-from .dicom import DUMMY_PATH, DicomExample, DicomInput, DicomPathDataset, DicomPathInput, collate_fn, uncollate
+from .dicom import (
+    DUMMY_PATH,
+    DicomExample,
+    DicomInput,
+    DicomINRDataset,
+    DicomPathDataset,
+    DicomPathInput,
+    collate_fn,
+    uncollate,
+)
 from .image import ImageExample, ImageInput, ImagePathDataset, ImagePathInput
 from .metadata import (
     BoundingBoxMetadata,
@@ -40,4 +49,5 @@ __all__ = [
     "ImagePathDataset",
     "ImagePathInput",
     "ImageExample",
+    "DicomINRDataset",
 ]
