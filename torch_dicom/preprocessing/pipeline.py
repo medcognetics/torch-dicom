@@ -3,7 +3,6 @@
 
 import json
 from dataclasses import dataclass, field
-from enum import StrEnum
 from functools import cached_property
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, Iterator, Sequence, Set, cast
@@ -14,6 +13,9 @@ from dicom_utils.dicom import Dicom, set_pixels
 from dicom_utils.volume import KeepVolume, VolumeHandler
 from pydicom.dataset import FileDataset
 from pydicom.uid import ExplicitVRLittleEndian, ImplicitVRLittleEndian
+
+# TODO Use `from enum import StrEnum` with Python 3.11+
+from strenum import StrEnum  # type:ignore
 from torch import Tensor
 from torch.utils.data import DataLoader
 from tqdm_multiprocessing import ConcurrentMapper

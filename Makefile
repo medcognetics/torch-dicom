@@ -20,8 +20,13 @@ clean: ## remove cache files
 	find $(CLEAN_DIRS) -name '*.orig' -type f -delete
 
 clean-env: ## remove the virtual environment directory
-	pdm venv remove $(PROJECT)
+	pdm venv remove -y $(PROJECT)
 
+reset:
+	$(MAKE) clean
+	$(MAKE) clean-env
+	$(MAKE) init
+	$(MAKE) check
 
 deploy: ## installs from lockfile
 	git submodule update --init --recursive
