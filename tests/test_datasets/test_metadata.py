@@ -268,9 +268,16 @@ class TestBoundingBoxMetadata:
 
     def test_transform(self, dataset: Dataset, box_data):
         wrapper = BoundingBoxMetadata(dataset, box_data)
-        example1 = wrapper[0]
+
+        # The ordering of samples in `wrapper` is not deterministic,
+        # so we look for a particular sample that has `boxes`
+        index = 0
+        while str(wrapper[index]["record"].path)[-5] != "2":
+            index += 1
+
+        example1 = wrapper[index]
         wrapper.transform = RandomHorizontalFlip(1.0)
-        example2 = wrapper[0]
+        example2 = wrapper[index]
 
         boxes1 = example1["bounding_boxes"]["boxes"]
         boxes2 = example2["bounding_boxes"]["boxes"]

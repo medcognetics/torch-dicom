@@ -15,6 +15,7 @@ dependencies = [
     "pandas",
     "dicom-utils @ git+https://github.com/medcognetics/dicom-utils.git",
     "torchvision>=0.16.0",
+    "StrEnum>=0.4.15",
 ]
 readme = "README.md"
 license = {text = "Apache"}
