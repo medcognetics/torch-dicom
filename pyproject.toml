@@ -7,27 +7,25 @@ name = "torch-dicom"
 description = ""
 requires-python = ">=3.9,<3.12"
 authors = [
-    {name = "Scott Chase Waggener", email = "tidalpaladin@protonmail.com"},
+  { name = "Scott Chase Waggener", email = "tidalpaladin@protonmail.com" },
 ]
 dependencies = [
-    "einops",
-    "torch>=1.11.0",
-    "pandas",
-    "dicom-utils @ git+https://github.com/medcognetics/dicom-utils.git",
-    "torchvision>=0.16.0",
-    "StrEnum>=0.4.15",
+  "einops",
+  "torch>=1.11.0",
+  "pandas",
+  "dicom-utils",
+  "torchvision>=0.16.0",
+  "StrEnum>=0.4.15",
 ]
 readme = "README.md"
-license = {text = "Apache"}
+license = { text = "Apache" }
 dynamic = ["version"]
 
 [project.optional-dependencies]
-j2k = [
-  "pynvjpeg2k @ git+ssh://git@github.com/medcognetics/pynvjpeg2k.git",
-]
+j2k = ["pynvjpeg2k @ git+ssh://git@github.com/medcognetics/pynvjpeg2k.git"]
 datamodule = [
-    "pytorch-lightning>=2.1.2",
-    "deep-helpers @ git+https://github.com/TidalPaladin/deep-helpers.git",
+  "pytorch-lightning>=2.1.2",
+  "deep-helpers @ git+https://github.com/TidalPaladin/deep-helpers.git",
 ]
 
 [tool.autoflake]
@@ -61,27 +59,14 @@ pythonVersion = "3.11"
 version = { source = "scm" }
 
 [tool.pdm.dev-dependencies]
-test = [
-  "pytest",
-  "pytest-mock",
-  "pytest-cov",
-  "coverage",
-]
-quality = [
-  "autoflake",
-  "autopep8",
-  "black",
-  "flake8",
-  "isort",
-]
+test = ["pytest", "pytest-mock", "pytest-cov", "coverage"]
+quality = ["autoflake", "autopep8", "black", "flake8", "isort"]
 
 [tool.pytest.ini_options]
-markers = [
-  "ci_skip",
-]
+markers = ["ci_skip"]
 filterwarnings = [
   "ignore:.*Invalid value for VR.*:UserWarning",
-  "ignore:.*indicates it contains excess padding.*:UserWarning"
+  "ignore:.*indicates it contains excess padding.*:UserWarning",
 ]
 
 # Sample script config
