@@ -10,6 +10,7 @@ from dicom_utils.volume import ReduceVolume
 from torch.utils.data import DataLoader, RandomSampler, SequentialSampler
 from torchvision.transforms.v2 import Resize
 
+import torch_dicom
 from torch_dicom.datasets import ImagePathDataset, MetadataDatasetWrapper, PreprocessingConfigMetadata
 from torch_dicom.datasets.sampler import BatchComplementSampler, WeightedCSVSampler
 from torch_dicom.preprocessing.datamodule import PreprocessedPNGDataModule
@@ -336,20 +337,21 @@ class TestPreprocessedPNGDataModule:
             preprocessed_data,
             preprocessed_data,
             preprocessed_data,
-            persistent_workers=persistent_workers
+            persistent_workers=persistent_workers,
+            num_workers=1,
         )
-        
-        dataloader_spy = mocker.spy(module, '_data_loader')
-        
+
+        dataloader_spy = mocker.spy(torch_dicom.preprocessing.datamodule, "DataLoader")  # type: ignore
+
         module.setup("fit")
-        
+
         # Check train dataloader
         _ = module.train_dataloader()
         dataloader_spy.assert_called()
-        assert dataloader_spy.call_args[1]['persistent_workers'] == persistent_workers
-        
+        assert dataloader_spy.call_args[1]["persistent_workers"] == persistent_workers
+
         # Check val dataloader
         dataloader_spy.reset_mock()
         _ = module.val_dataloader()
         dataloader_spy.assert_called()
-        assert dataloader_spy.call_args[1]['persistent_workers'] == persistent_workers
+        assert dataloader_spy.call_args[1]["persistent_workers"] == persistent_workers
