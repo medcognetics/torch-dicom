@@ -116,6 +116,7 @@ class PreprocessedPNGDataModule(LightningDataModule):
         num_workers: int = 0,
         pin_memory: bool = True,
         prefetch_factor: Optional[int] = None,
+        persistent_workers: bool = False,
         train_sopuid_exclusions: PathLike | Iterable[str] | None = None,
         val_sopuid_exclusions: PathLike | Iterable[str] | None = None,
         test_sopuid_exclusions: PathLike | Iterable[str] | None = None,
@@ -145,6 +146,7 @@ class PreprocessedPNGDataModule(LightningDataModule):
         self.train_sopuid_exclusions = _prepare_sopuid_exclusions(train_sopuid_exclusions)
         self.val_sopuid_exclusions = _prepare_sopuid_exclusions(val_sopuid_exclusions)
         self.test_sopuid_exclusions = _prepare_sopuid_exclusions(test_sopuid_exclusions)
+        self.persistent_workers = persistent_workers
 
     def create_dataset(
         self,
@@ -391,6 +393,7 @@ class PreprocessedPNGDataModule(LightningDataModule):
             pin_memory=self.pin_memory,
             num_workers=self.num_workers,
             prefetch_factor=self.prefetch_factor,
+            persistent_workers=self.persistent_workers,
             **config,
         )
 

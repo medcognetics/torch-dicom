@@ -329,3 +329,27 @@ class TestPreprocessedPNGDataModule:
         loader = module.val_dataloader()
         assert isinstance(loader, DataLoader)
         assert len(loader) == 0
+
+    @pytest.mark.parametrize("persistent_workers", [True, False])
+    def test_persistent_workers(self, preprocessed_data, datamodule_with_metadata, mocker, persistent_workers):
+        module: PreprocessedPNGDataModule = datamodule_with_metadata(
+            preprocessed_data,
+            preprocessed_data,
+            preprocessed_data,
+            persistent_workers=persistent_workers
+        )
+        
+        dataloader_spy = mocker.spy(module, '_data_loader')
+        
+        module.setup("fit")
+        
+        # Check train dataloader
+        _ = module.train_dataloader()
+        dataloader_spy.assert_called()
+        assert dataloader_spy.call_args[1]['persistent_workers'] == persistent_workers
+        
+        # Check val dataloader
+        dataloader_spy.reset_mock()
+        _ = module.val_dataloader()
+        dataloader_spy.assert_called()
+        assert dataloader_spy.call_args[1]['persistent_workers'] == persistent_workers
