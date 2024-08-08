@@ -7,6 +7,7 @@ from deep_helpers.data.sampler import ConcatSampler
 from deep_helpers.structs import Mode
 from lightning_fabric.utilities.rank_zero import rank_zero_info
 from pytorch_lightning import LightningDataModule
+from torch.distributed import barrier, is_initialized
 from torch.utils.data import (
     BatchSampler,
     ConcatDataset,
@@ -387,7 +388,9 @@ class PreprocessedPNGDataModule(LightningDataModule):
             config.pop("shuffle", None)
             config.pop("sampler", None)
 
-        return DataLoader(
+        if is_initialized():
+            barrier()  # pragma: no cover
+        dl = DataLoader(
             dataset,
             collate_fn=partial(collate_fn, default_fallback=False),
             pin_memory=self.pin_memory,
@@ -396,6 +399,10 @@ class PreprocessedPNGDataModule(LightningDataModule):
             persistent_workers=self.persistent_workers,
             **config,
         )
+        if is_initialized():
+            barrier()  # pragma: no cover
+
+        return dl
 
     def on_after_batch_transfer(self, batch, dataloader_idx):
         assert self.trainer is not None
