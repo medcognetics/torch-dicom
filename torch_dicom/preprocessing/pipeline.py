@@ -28,6 +28,7 @@ from ..datasets.image import save_image
 class OutputFormat(StrEnum):
     PNG = "png"
     DICOM = "dcm"
+    TIFF = "tiff"
 
 
 def update_dicom(dicom: Dicom, img: Tensor) -> Dicom:
@@ -202,7 +203,7 @@ class PreprocessingPipeline:
         dest_path.parent.mkdir(exist_ok=True, parents=True)
         if output_format == OutputFormat.DICOM:
             dicom.save_as(dest_path, write_like_original=False)
-        elif output_format == OutputFormat.PNG:
+        elif output_format in (OutputFormat.PNG, OutputFormat.TIFF):
             img = result["img"]
             img.squeeze_(0)
             dtype = cast(np.dtype, np.uint16 if dicom.BitsAllocated == 16 else np.uint8)

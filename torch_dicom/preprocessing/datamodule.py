@@ -1,7 +1,7 @@
 from copy import copy
 from functools import partial
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Set, Sized, Union, cast
+from typing import Any, Callable, Dict, Final, Iterable, List, Optional, Sequence, Set, Sized, Union, cast
 
 from deep_helpers.data.sampler import ConcatSampler
 from deep_helpers.structs import Mode
@@ -30,6 +30,8 @@ from torch_dicom.datasets.helpers import Transform
 
 # NOTE: jsonargparse has trouble if os.PathLike is in the union
 PathLike = Union[str, Path]
+
+IMAGE_SUFFIXES: Final = (".png", ".tiff")
 
 
 def _prepare_inputs(inputs: Union[PathLike, Sequence[PathLike]]) -> List[Path]:
@@ -175,7 +177,8 @@ class PreprocessedPNGDataModule(LightningDataModule):
 
         # Create a dataset of preprocessed images and apply the preprocessing metadata wrapper
         # NOTE: Preprocessed files are named as SOPInstanceUID.png
-        images = filter(lambda p: p.stem not in sopuid_exclusions, target.rglob("*.png"))
+        images = filter(lambda p: p.suffix in IMAGE_SUFFIXES, target.rglob("*"))
+        images = filter(lambda p: p.stem not in sopuid_exclusions, images)
         dataset = ImagePathDataset(images, **kwargs)
         dataset = PreprocessingConfigMetadata(dataset)
 

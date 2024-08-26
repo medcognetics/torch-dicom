@@ -1,4 +1,5 @@
 from functools import partial
+from itertools import chain
 from typing import List, Sized
 
 import numpy as np
@@ -27,10 +28,10 @@ def patient_ids(dicoms):
     return [dcm.PatientID for dcm in dicoms]
 
 
-@pytest.fixture(scope="session")
-def preprocessed_data(tmp_path_factory, files):
-    root = tmp_path_factory.mktemp("preprocessed")
-    pipeline = PreprocessingPipeline(files, output_format=OutputFormat.PNG, volume_handler=ReduceVolume())
+@pytest.fixture(scope="session", params=[OutputFormat.PNG, OutputFormat.TIFF])
+def preprocessed_data(tmp_path_factory, files, request):
+    root = tmp_path_factory.mktemp(f"preprocessed_{request.param}")
+    pipeline = PreprocessingPipeline(files, output_format=request.param, volume_handler=ReduceVolume())
     pipeline(root)
     return root
 
@@ -150,7 +151,7 @@ class TestPreprocessedPNGDataModule:
     )
     def test_create_sampler(self, preprocessed_data, mode, exp):
         dm = PreprocessedPNGDataModule()
-        ds = ImagePathDataset(preprocessed_data.rglob("*.png"))
+        ds = ImagePathDataset(iter(list(preprocessed_data.rglob("*.png")) + list(preprocessed_data.rglob("*.tiff"))))
         output = dm.create_sampler(ds, list(ds.files), preprocessed_data, mode)
         assert isinstance(output, exp)
         assert isinstance(output, Sized) and len(output) == len(ds)
@@ -302,7 +303,7 @@ class TestPreprocessedPNGDataModule:
     )
     def test_sopuid_exclusions(self, preprocessed_data, datamodule_with_metadata, stage, from_file, tmp_path, fn):
         # Prepare a filter that only passes one example
-        sop_uids = [f.stem for f in preprocessed_data.rglob("*.png")]
+        sop_uids = [f.stem for f in chain(preprocessed_data.rglob("*.png"), preprocessed_data.rglob("*.tiff"))]
         if from_file:
             sopuid_exclusions = tmp_path / "sopuid_exclusions.txt"
             with open(sopuid_exclusions, "w") as f:
