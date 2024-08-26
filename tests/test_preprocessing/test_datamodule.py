@@ -14,7 +14,7 @@ from torchvision.transforms.v2 import Resize
 import torch_dicom
 from torch_dicom.datasets import ImagePathDataset, MetadataDatasetWrapper, PreprocessingConfigMetadata
 from torch_dicom.datasets.sampler import BatchComplementSampler, WeightedCSVSampler
-from torch_dicom.preprocessing.datamodule import PreprocessedPNGDataModule
+from torch_dicom.preprocessing.datamodule import PreprocessedDataModule
 from torch_dicom.preprocessing.pipeline import OutputFormat, PreprocessingPipeline
 
 
@@ -87,7 +87,7 @@ class PatientBatchSampler(BatchComplementSampler):
         return self.select_random_complement(idx, "Patient")
 
 
-class ModuleWithCustomSampler(PreprocessedPNGDataModule):
+class ModuleWithCustomSampler(PreprocessedDataModule):
     def create_sampler(self, dataset, example_paths, root, mode):
         if mode == Mode.TRAIN:
             return WeightedCSVSampler(
@@ -100,7 +100,7 @@ class ModuleWithCustomSampler(PreprocessedPNGDataModule):
             return super().create_sampler(dataset, example_paths, root, mode)
 
 
-class ModuleWithCustomBatchSampler(PreprocessedPNGDataModule):
+class ModuleWithCustomBatchSampler(PreprocessedDataModule):
     def create_batch_sampler(self, dataset, sampler, example_paths, roots, mode):
         if mode == Mode.TRAIN:
             return PatientBatchSampler(
@@ -113,7 +113,7 @@ class ModuleWithCustomBatchSampler(PreprocessedPNGDataModule):
             return
 
 
-class TestPreprocessedPNGDataModule:
+class TestPreprocessedDataModule:
     @pytest.fixture(scope="class")
     def datamodule_with_metadata(self, manifest_csv, annotation_csv, roi_csv):
         boxes_filename = roi_csv.name
@@ -121,10 +121,10 @@ class TestPreprocessedPNGDataModule:
             "manifest": manifest_csv.name,
             "annotation": annotation_csv.name,
         }
-        return partial(PreprocessedPNGDataModule, boxes_filename=boxes_filename, metadata_filenames=metadata_filenames)
+        return partial(PreprocessedDataModule, boxes_filename=boxes_filename, metadata_filenames=metadata_filenames)
 
     def test_create_dataset_no_extra_metadata(self, preprocessed_data):
-        dm = PreprocessedPNGDataModule()
+        dm = PreprocessedDataModule()
         output = dm.create_dataset(preprocessed_data, Mode.TRAIN)
         assert isinstance(output, PreprocessingConfigMetadata)
         assert isinstance(output.dataset, ImagePathDataset)
@@ -150,7 +150,7 @@ class TestPreprocessedPNGDataModule:
         ],
     )
     def test_create_sampler(self, preprocessed_data, mode, exp):
-        dm = PreprocessedPNGDataModule()
+        dm = PreprocessedDataModule()
         ds = ImagePathDataset(iter(list(preprocessed_data.rglob("*.png")) + list(preprocessed_data.rglob("*.tiff"))))
         output = dm.create_sampler(ds, list(ds.files), preprocessed_data, mode)
         assert isinstance(output, exp)
@@ -167,7 +167,7 @@ class TestPreprocessedPNGDataModule:
     )
     def test_setup(self, preprocessed_data, datamodule_with_metadata, stage, batch_size, fn, multi_inputs):
         preprocessed_data = [preprocessed_data] * 2 if multi_inputs else preprocessed_data
-        module: PreprocessedPNGDataModule = datamodule_with_metadata(
+        module: PreprocessedDataModule = datamodule_with_metadata(
             preprocessed_data,
             preprocessed_data,
             preprocessed_data,
@@ -223,7 +223,7 @@ class TestPreprocessedPNGDataModule:
         ],
     )
     def test_gpu_transforms(self, mocker, preprocessed_data, datamodule_with_metadata, train_gpu_transforms):
-        module: PreprocessedPNGDataModule = datamodule_with_metadata(
+        module: PreprocessedDataModule = datamodule_with_metadata(
             preprocessed_data,
             preprocessed_data,
             preprocessed_data,
@@ -257,7 +257,7 @@ class TestPreprocessedPNGDataModule:
         }
         config = {
             "data": {
-                "class_path": "torch_dicom.preprocessing.datamodule.PreprocessedPNGDataModule",
+                "class_path": "torch_dicom.preprocessing.datamodule.PreprocessedDataModule",
                 "init_args": {
                     "train_inputs": [str(preprocessed_data)] * 2,
                     "val_inputs": str(preprocessed_data),
@@ -283,12 +283,12 @@ class TestPreprocessedPNGDataModule:
         # Parse config
         parser = jsonargparse.ArgumentParser()
         parser.add_argument("--config", action=jsonargparse.ActionConfigFile)
-        parser.add_subclass_arguments(PreprocessedPNGDataModule, "data")
+        parser.add_subclass_arguments(PreprocessedDataModule, "data")
         with pytest.raises(SystemExit):
             parser.parse_args(["--help"])
         cfg = parser.parse_args(["--config", str(config_path)])
         cfg = parser.instantiate_classes(cfg)
-        assert isinstance(cfg.data, PreprocessedPNGDataModule)
+        assert isinstance(cfg.data, PreprocessedDataModule)
         assert cfg.data.batch_size == config["data"]["init_args"]["batch_size"]
         cfg.data.setup("fit")
 
@@ -312,7 +312,7 @@ class TestPreprocessedPNGDataModule:
             sopuid_exclusions = sop_uids[:-1]
 
         # Check that the corresponding dataloader only has one example
-        module: PreprocessedPNGDataModule = datamodule_with_metadata(
+        module: PreprocessedDataModule = datamodule_with_metadata(
             preprocessed_data,
             preprocessed_data,
             preprocessed_data,
@@ -326,7 +326,7 @@ class TestPreprocessedPNGDataModule:
         assert len(loader) == 1
 
     def test_no_validation_data(self, preprocessed_data, datamodule_with_metadata):
-        module: PreprocessedPNGDataModule = datamodule_with_metadata(preprocessed_data)
+        module: PreprocessedDataModule = datamodule_with_metadata(preprocessed_data)
         module.setup(stage="fit")
         loader = module.val_dataloader()
         assert isinstance(loader, DataLoader)
@@ -334,7 +334,7 @@ class TestPreprocessedPNGDataModule:
 
     @pytest.mark.parametrize("persistent_workers", [True, False])
     def test_persistent_workers(self, preprocessed_data, datamodule_with_metadata, mocker, persistent_workers):
-        module: PreprocessedPNGDataModule = datamodule_with_metadata(
+        module: PreprocessedDataModule = datamodule_with_metadata(
             preprocessed_data,
             preprocessed_data,
             preprocessed_data,

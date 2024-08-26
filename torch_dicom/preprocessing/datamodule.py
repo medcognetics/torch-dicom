@@ -61,7 +61,7 @@ def _prepare_sopuid_exclusions(sopuid_exclusions: PathLike | Iterable[str] | Non
         return set()
 
 
-class PreprocessedPNGDataModule(LightningDataModule):
+class PreprocessedDataModule(LightningDataModule):
     r"""Data module for preprocessed PNG images.
 
     .. note::

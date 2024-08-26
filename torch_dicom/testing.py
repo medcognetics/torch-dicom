@@ -27,7 +27,7 @@ from dicom_utils.volume import ReduceVolume
 from torchvision.tv_tensors import BoundingBoxes, BoundingBoxFormat
 
 from torch_dicom.preprocessing import PreprocessingPipeline
-from torch_dicom.preprocessing.datamodule import PreprocessedPNGDataModule
+from torch_dicom.preprocessing.datamodule import PreprocessedDataModule
 
 from .preprocessing import require_datamodule
 
@@ -40,15 +40,15 @@ DEFAULT_TRACE_EXTRA_KEYS: Final = ["trait", "types"]
 
 
 if TYPE_CHECKING:
-    from torch_dicom.preprocessing.datamodule import PreprocessedPNGDataModule
+    from torch_dicom.preprocessing.datamodule import PreprocessedDataModule
 else:
     try:
-        from torch_dicom.preprocessing.datamodule import PreprocessedPNGDataModule
+        from torch_dicom.preprocessing.datamodule import PreprocessedDataModule
     except ImportError:
-        PreprocessedPNGDataModule = None
+        PreprocessedDataModule = None
 
 
-M = TypeVar("M", bound=PreprocessedPNGDataModule)
+M = TypeVar("M", bound=PreprocessedDataModule)
 
 
 def choose_modulus(val: int, choices: Sequence[Any]) -> Any:
@@ -291,26 +291,26 @@ class DicomTestFactory:
         },
         boxes_filename: Optional[str] = DEFAULT_TRACE_MANIFEST_FILENAME,
         boxes_extra_keys: Iterable[str] = DEFAULT_TRACE_EXTRA_KEYS,
-        datamodule_class: Type[M] = PreprocessedPNGDataModule,
+        datamodule_class: Type[M] = PreprocessedDataModule,
         **kwargs,
     ) -> M:
-        r"""Creates a :class:`PreprocessedPNGDataModule` using the factory.
+        r"""Creates a :class:`PreprocessedDataModule` using the factory.
 
         Args:
-            setup: Whether to setup the created :class:`PreprocessedPNGDataModule` instance.
+            setup: Whether to setup the created :class:`PreprocessedDataModule` instance.
                 If ``True``, the :func:`setup` hook will be called for the ``fit`` and ``test`` stages.
             metadata_filenames: Filenames for the manifest and annotation manifest CSV files.
             boxes_filename: Filename for the trace manifest CSV file.
             boxes_extra_keys: Extra keys to include in the trace manifest CSV file.
-            datamodule_class: The specific :class:`PreprocessedPNGDataModule` class to use.
+            datamodule_class: The specific :class:`PreprocessedDataModule` class to use.
 
         Keyword Args:
-            Forwarded to the :class:`PreprocessedPNGDataModule` constructor.
+            Forwarded to the :class:`PreprocessedDataModule` constructor.
 
         Returns:
-            A :class:`PreprocessedPNGDataModule` instance.
+            A :class:`PreprocessedDataModule` instance.
         """
-        # PreprocessedPNGDataModule is an optional dependency. Validate that it is installed.
+        # PreprocessedDataModule is an optional dependency. Validate that it is installed.
         require_datamodule()
 
         # Create the DICOM files

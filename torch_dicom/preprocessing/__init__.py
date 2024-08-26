@@ -7,7 +7,7 @@ from .resize import Resize
 
 def datamodule_available() -> bool:
     try:
-        from .datamodule import PreprocessedPNGDataModule  # noqa: F401
+        from .datamodule import PreprocessedDataModule  # noqa: F401
     except ImportError:
         return False
     return True
@@ -16,7 +16,7 @@ def datamodule_available() -> bool:
 def require_datamodule() -> None:
     if not datamodule_available():
         raise ImportError(
-            "PreprocessedPNGDataModule is not available." "Please install the `torch-dicom[datamodule]` extra."
+            "PreprocessedDataModule is not available." "Please install the `torch-dicom[datamodule]` extra."
         )
 
 
