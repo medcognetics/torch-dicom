@@ -1,8 +1,8 @@
 .PHONY: clean clean-env check quality style tag-version test env upload upload-test
 
 PROJECT=torch_dicom
-QUALITY_DIRS=$(PROJECT) tests
-CLEAN_DIRS=$(PROJECT) tests
+QUALITY_DIRS=$(PROJECT) tests scripts
+CLEAN_DIRS=$(PROJECT) tests scripts
 PYTHON=pdm run python
 
 check: ## run quality checks and unit tests
@@ -81,7 +81,7 @@ test-ci: ## runs CI-only tests
 		./tests/
 
 types: node_modules
-	pdm run npx --no-install pyright tests $(PROJECT)
+	pdm run npx --no-install pyright tests $(PROJECT) scripts
 
 help: ## display this help message
 	@echo "Please use \`make <target>' where <target> is one of"

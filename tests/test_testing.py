@@ -7,7 +7,7 @@ from dicom_utils.container import DicomImageFileRecord
 from torchvision.tv_tensors import BoundingBoxes, BoundingBoxFormat
 
 from torch_dicom.datasets import ImagePathDataset
-from torch_dicom.preprocessing.datamodule import PreprocessedPNGDataModule
+from torch_dicom.preprocessing.datamodule import PreprocessedDataModule
 from torch_dicom.testing import DicomTestFactory, MammogramTestFactory, choose_modulus, create_random_box
 
 
@@ -100,14 +100,14 @@ class TestDicomTestFactory:
 
     @pytest.mark.parametrize("setup", [False, True])
     def test_call(self, mocker, factory, setup):
-        spy = mocker.spy(PreprocessedPNGDataModule, "setup")
+        spy = mocker.spy(PreprocessedDataModule, "setup")
         dm = factory(setup=setup)
-        assert isinstance(dm, PreprocessedPNGDataModule)
+        assert isinstance(dm, PreprocessedDataModule)
 
         if setup:
             assert spy.call_count == 2
             # Check that all dataloaders are valid.
-            # We dont check the example members, this should be tested in PreprocessedPNGDataModule
+            # We dont check the example members, this should be tested in PreprocessedDataModule
             for dl in (
                 dm.train_dataloader(),
                 dm.val_dataloader(),

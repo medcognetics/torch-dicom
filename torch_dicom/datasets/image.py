@@ -24,7 +24,8 @@ class ImageExample(TypedDict):
 
 def save_image(img: Tensor, path: Path, dtype: np.dtype = cast(np.dtype, np.uint16)) -> None:
     """
-    Saves an image tensor to a PNG. Floating point inputs are expected to be in the range [0, 1].
+    Saves an image tensor to a file using PIL. Supports PNG and TIFF formats.
+    Floating point inputs are expected to be in the range [0, 1].
     Floating point inputs will be converted to ``dtype`` before saving.
 
     Args:
@@ -54,12 +55,14 @@ def save_image(img: Tensor, path: Path, dtype: np.dtype = cast(np.dtype, np.uint
     if dtype == np.uint16 and img.ndim == 3:
         raise ValueError("Saving 3-channel uint16 images is not supported")  # pragma: no cover
 
-    PILImage.fromarray(img_np).save(str(path))
+    pil_mode = "I;16" if dtype == np.uint16 else None
+    pil_img = PILImage.fromarray(img_np, mode=pil_mode)
+    pil_img.save(str(path))
 
 
 def load_image(inp: Union[PILImage.Image, Path]) -> TVImage:
     """
-    Loads an image file. The loaded image will be min max normalized
+    Loads an image file using PIL. The loaded image will be min max normalized
     based on the dtype of the image.
 
     Args:

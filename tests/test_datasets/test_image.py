@@ -14,18 +14,23 @@ from torch_dicom.datasets.image import ImageInput, ImagePathDataset, ImagePathIn
 
 
 @pytest.mark.parametrize(
-    "inp,dtype",
+    "inp,dtype,format",
     [
-        (torch.rand(32, 32), np.uint8),
-        (torch.rand(3, 32, 32), np.uint8),
-        (torch.rand(32, 32), np.uint16),
-        (torch.rand(1, 32, 32), np.uint16),
-        (torch.randint(0, 256, (32, 32), dtype=torch.uint8), np.uint8),
+        (torch.rand(32, 32), np.uint8, "png"),
+        (torch.rand(3, 32, 32), np.uint8, "png"),
+        (torch.rand(32, 32), np.uint16, "png"),
+        (torch.rand(1, 32, 32), np.uint16, "png"),
+        (torch.randint(0, 256, (32, 32), dtype=torch.uint8), np.uint8, "png"),
+        (torch.rand(32, 32), np.uint8, "tiff"),
+        (torch.rand(3, 32, 32), np.uint8, "tiff"),
+        (torch.rand(32, 32), np.uint16, "tiff"),
+        (torch.rand(1, 32, 32), np.uint16, "tiff"),
+        (torch.randint(0, 256, (32, 32), dtype=torch.uint8), np.uint8, "tiff"),
     ],
 )
-def test_save_image(mocker, tmp_path, inp, dtype):
+def test_save_image(mocker, tmp_path, inp, dtype, format):
     spy = mocker.spy(Image, "fromarray")
-    path = tmp_path / "test.png"
+    path = tmp_path / f"test.{format}"
     save_image(inp, path, dtype)
     assert path.is_file()
 
@@ -39,23 +44,29 @@ def test_save_image(mocker, tmp_path, inp, dtype):
 
 @pytest.mark.parametrize("pil", [False, True])
 @pytest.mark.parametrize(
-    "inp,dtype",
+    "inp,dtype,format",
     [
-        (torch.rand(32, 32), np.uint8),
-        (torch.rand(3, 32, 32), np.uint8),
-        (torch.rand(32, 32), np.uint16),
-        (torch.rand(1, 32, 32), np.uint16),
-        (torch.randint(0, 256, (32, 32), dtype=torch.uint8), np.uint8),
+        (torch.rand(32, 32), np.uint8, "png"),
+        (torch.rand(3, 32, 32), np.uint8, "png"),
+        (torch.rand(32, 32), np.uint16, "png"),
+        (torch.rand(1, 32, 32), np.uint16, "png"),
+        (torch.randint(0, 256, (32, 32), dtype=torch.uint8), np.uint8, "png"),
+        (torch.rand(32, 32), np.uint8, "tiff"),
+        (torch.rand(3, 32, 32), np.uint8, "tiff"),
+        (torch.rand(32, 32), np.uint16, "tiff"),
+        (torch.rand(1, 32, 32), np.uint16, "tiff"),
+        (torch.randint(0, 256, (32, 32), dtype=torch.uint8), np.uint8, "tiff"),
     ],
 )
-def test_load_image(mocker, tmp_path, inp, dtype, pil):
-    mocker.spy(Image, "fromarray")
-    path = tmp_path / "test.png"
+def test_load_image(mocker, tmp_path, inp, dtype, format, pil):
+    spy = mocker.spy(Image, "fromarray")
+    path = tmp_path / f"test.{format}"
     save_image(inp, path, dtype)
 
     inp = Image.open(path) if pil else path
     result = load_image(inp)
     assert isinstance(result, TVImage)
+    spy.assert_called_once()
 
 
 class TestImageInput:
@@ -150,9 +161,10 @@ class TestImagePathDataset(TestImagePathInput):
 
 
 @pytest.mark.parametrize("dtype", [np.uint8, np.uint16])
-def test_save_and_load_image(tmp_path, dtype, dicom_size):
+@pytest.mark.parametrize("format", ["png", "tiff"])
+def test_save_and_load_image(tmp_path, dtype, format, dicom_size):
     img_tensor = torch.rand(1, *dicom_size)
-    img_path = tmp_path / "test.png"
+    img_path = tmp_path / f"test.{format}"
     save_image(img_tensor, img_path, dtype)
     assert img_path.is_file()
 
