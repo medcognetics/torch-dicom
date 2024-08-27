@@ -109,6 +109,7 @@ class PreprocessingPipeline:
     dataloader_kwargs: dict = field(default_factory=dict)
     use_bar: bool = True
     output_format: OutputFormat = OutputFormat.PNG
+    compression: str | None = None
 
     def __iter__(self) -> Iterator[Dict[str, Any]]:
         for batch in self.dataloader:
@@ -140,7 +141,9 @@ class PreprocessingPipeline:
         with ConcurrentMapper(threads=True, jobs=self.num_workers, ignore_exceptions=False) as mapper:
             mapper.create_bar(desc="Preprocessing", disable=not self.use_bar)
             result: Set[Path] = set(
-                mapper(lambda x: PreprocessingPipeline._save_as(x, dest, self.output_format), iter(self))
+                mapper(
+                    lambda x: PreprocessingPipeline._save_as(x, dest, self.output_format, self.compression), iter(self)
+                )
             )
         return result
 
@@ -192,7 +195,7 @@ class PreprocessingPipeline:
         )
 
     @staticmethod
-    def _save_as(result: Dict[str, Any], dest: Path, output_format: OutputFormat) -> Path:
+    def _save_as(result: Dict[str, Any], dest: Path, output_format: OutputFormat, compression: str | None) -> Path:
         dicom = result["dicom"]
         assert isinstance(dicom, Dicom)
 
@@ -207,7 +210,7 @@ class PreprocessingPipeline:
             img = result["img"]
             img.squeeze_(0)
             dtype = cast(np.dtype, np.uint16 if dicom.BitsAllocated == 16 else np.uint8)
-            save_image(img, dest_path, dtype)
+            save_image(img, dest_path, dtype, compression)
         else:
             raise ValueError(f"Unknown output format {output_format}")
 

@@ -56,6 +56,7 @@ def parse_args() -> Namespace:
         choices=[str(x) for x in OutputFormat],
         help="Preprocessing output format",
     )
+    parser.add_argument("-c", "--compression", type=str, default=None, help="Compression passed to PIL.Image.save")
     parser.add_argument("-r", "--roi-crop", type=Path, default=None, help="Path to ROI crop file for ROICrop")
     return parser.parse_args()
 
@@ -71,7 +72,7 @@ def main(args: Namespace):
             resize,
         ]
     else:
-        transforms = []
+        transforms = [MinMaxCrop()]
 
     inp = Path(args.input)
     dest_dir = Path(args.output)
@@ -100,6 +101,7 @@ def main(args: Namespace):
         transforms=transforms,
         volume_handler=volume_handler,
         output_format=OutputFormat(args.output_format),
+        compression=args.compression,
     )
     pipeline(args.output)
 
