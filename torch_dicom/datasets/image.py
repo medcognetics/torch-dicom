@@ -22,7 +22,9 @@ class ImageExample(TypedDict):
     path: Optional[Path]
 
 
-def save_image(img: Tensor, path: Path, dtype: np.dtype = cast(np.dtype, np.uint16)) -> None:
+def save_image(
+    img: Tensor, path: Path, dtype: np.dtype = cast(np.dtype, np.uint16), compression: str | None = None
+) -> None:
     """
     Saves an image tensor to a file using PIL. Supports PNG and TIFF formats.
     Floating point inputs are expected to be in the range [0, 1].
@@ -32,6 +34,7 @@ def save_image(img: Tensor, path: Path, dtype: np.dtype = cast(np.dtype, np.uint
         img: Image tensor.
         path: Path to the file.
         dtype: Data type to convert to before saving. Only used for floating point inputs.
+        compression: Compression argument passed to ``PIL.Image.save``.
 
     Shapes:
         * ``img``: :math:`(C, H, W)` or :math:`(H, W)`
@@ -57,7 +60,7 @@ def save_image(img: Tensor, path: Path, dtype: np.dtype = cast(np.dtype, np.uint
 
     pil_mode = "I;16" if dtype == np.uint16 else None
     pil_img = PILImage.fromarray(img_np, mode=pil_mode)
-    pil_img.save(str(path))
+    pil_img.save(str(path), compression=compression)
 
 
 def load_image(inp: Union[PILImage.Image, Path]) -> TVImage:

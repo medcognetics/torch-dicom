@@ -50,11 +50,24 @@ class TestPreprocessingPipeline:
             else:
                 raise AssertionError("No matching SOPInstanceUID found")
 
-    @pytest.mark.parametrize("output_format", [OutputFormat.PNG, OutputFormat.TIFF])
-    def test_preprocess_image(self, tmp_path, dicoms, dicom_iterator, file_iterator, output_format):
+    @pytest.mark.parametrize(
+        "output_format, compression",
+        [
+            (OutputFormat.PNG, None),
+            (OutputFormat.TIFF, None),
+            (OutputFormat.TIFF, "tiff_lzw"),
+            (OutputFormat.TIFF, "tiff_deflate"),
+            (OutputFormat.TIFF, "tiff_adobe_deflate"),
+        ],
+    )
+    def test_preprocess_image(self, tmp_path, dicoms, dicom_iterator, file_iterator, output_format, compression):
         dicoms = deepcopy(dicoms)
         pipeline = PreprocessingPipeline(
-            file_iterator, dicom_iterator, output_format=output_format, volume_handler=ReduceVolume()
+            file_iterator,
+            dicom_iterator,
+            output_format=output_format,
+            volume_handler=ReduceVolume(),
+            compression=compression,
         )
         dest = Path(tmp_path, "output")
         dest.mkdir()
