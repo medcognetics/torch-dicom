@@ -3,7 +3,7 @@
 import warnings
 from argparse import ArgumentParser, Namespace
 from pathlib import Path
-from typing import Any, cast, Final
+from typing import Any, Final, cast
 
 import numpy as np
 import torch

@@ -42,8 +42,11 @@ def test_main(tmp_path, files, mocker):
     ],
 )
 def test_main_with_warnings(mocker, pattern, capsys):
+    control_warning = "Leave this warning"
+
     def side_effect_function(_):
         warnings.warn(pattern)
+        warnings.warn(control_warning)
         print("Warning issued")
 
     mocker.patch("torch_dicom.preprocessing.__main__.main", side_effect=side_effect_function)
@@ -55,5 +58,6 @@ def test_main_with_warnings(mocker, pattern, capsys):
 
     captured = capsys.readouterr()
     assert not any(pattern in str(warning.message) for warning in w)
+    assert any(str(warning.message) == control_warning for warning in w)
     assert pattern not in captured.out
     assert pattern not in captured.err
