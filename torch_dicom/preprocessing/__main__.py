@@ -3,7 +3,7 @@
 import warnings
 from argparse import ArgumentParser, Namespace
 from pathlib import Path
-from typing import Final, cast
+from typing import Any, cast, Final
 
 import numpy as np
 import torch
@@ -59,23 +59,41 @@ def parse_args() -> Namespace:
         choices=[str(x) for x in OutputFormat],
         help="Preprocessing output format",
     )
-    parser.add_argument("-c", "--compression", type=str, default=None, help="Compression passed to PIL.Image.save")
-    parser.add_argument("-r", "--roi-crop", type=Path, default=None, help="Path to ROI crop file for ROICrop")
+    parser.add_argument("-co", "--compression", type=str, default=None, help="Compression passed to PIL.Image.save")
+    parser.add_argument("-c", "--crop", default=None, choices=["minmax", "roi"], help="Cropping method.")
+    parser.add_argument(
+        "-r", "--rois", type=Path, default=None, help="Path to ROI metadata to be used for ROI cropping."
+    )
     return parser.parse_args()
 
 
 def main(args: Namespace):
-    # Build transform list
+    # Cropping
+    if args.crop == "roi":
+        if args.rois is None:
+            raise ValueError("ROI cropping selected but no ROI metadata provided. " "Please see the --rois argument.")
+        elif not args.rois.is_file():
+            raise FileNotFoundError(f"ROI metadata file {args.rois} does not exist")
+        elif not args.size:
+            # TODO: Allow ROICrop to accept None for min_size, in which case we use the ROI size
+            raise ValueError("ROI cropping selected but no output size provided. Please see the --size argument.")
+        crop = ROICrop(path=args.rois, min_size=args.size)
+    elif args.crop == "minmax":
+        crop = MinMaxCrop()
+    elif args.crop is None:
+        crop = None
+    else:
+        raise ValueError(f"Invalid crop value: {args.crop}")
+
+    # Resize
     if args.size:
         H, W = tuple(args.size)
-        crop = ROICrop(path=args.roi_crop, min_size=args.size) if args.roi_crop else MinMaxCrop()
         resize = Resize(size=(H, W), mode=args.resize_mode)
-        transforms = [
-            crop,
-            resize,
-        ]
     else:
-        transforms = [MinMaxCrop()]
+        resize = None
+
+    # Build transform list
+    transforms = [cast(Any, t) for t in (crop, resize) if t is not None]
 
     inp = Path(args.input)
     dest_dir = Path(args.output)
