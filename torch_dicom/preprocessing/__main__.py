@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+import warnings
 from argparse import ArgumentParser, Namespace
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Final, cast
 
 import numpy as np
 import torch
@@ -15,6 +16,8 @@ from .crop import MinMaxCrop, ROICrop
 from .pipeline import OutputFormat, PreprocessingPipeline
 from .resize import Resize
 
+
+WARNING_IGNORE_SUBSTRINGS: Final = ["Bits Stored value", "Invalid value for VR"]
 
 VOLUME_HANDLERS = Registry("volume handlers")
 
@@ -125,6 +128,9 @@ def main(args: Namespace):
 
 
 def entrypoint():
+    """Entry point for the preprocessing script."""
+    for substring in WARNING_IGNORE_SUBSTRINGS:
+        warnings.filterwarnings("ignore", message=f".*{substring}.*")
     main(parse_args())
 
 
