@@ -13,7 +13,7 @@ from torch import Tensor
 from .crop import E
 
 
-EPS: Final = 1e-6
+EPS: Final = torch.finfo(torch.float32).eps
 
 
 def make_tensor_like(proto: Tensor, value: Any, expand: bool = False, **kwargs) -> Tensor:
