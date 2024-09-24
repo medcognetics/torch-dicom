@@ -26,7 +26,8 @@ class TestResize:
             (1, 64, 64, 32, 16, False),
             (3, 64, 64, 32, 32, True),
             (3, 64, 64, 64, 64, True),
-            (3, 64, 64, 32, 16, False),
+            # Test epsilon for floating point precision, from real world example
+            (1, 5928, 4728, 2048, 1536, False),
         ],
     )
     def test_resize(self, inp, target_h, target_w, aspect_match, preserve_aspect_ratio, smart_pad, mode):

@@ -3,7 +3,7 @@
 
 import warnings
 from dataclasses import dataclass
-from typing import Any, Dict, Optional, Tuple, Union, cast
+from typing import Any, Dict, Final, Optional, Tuple, Union, cast
 
 import torch
 import torch.nn.functional as F
@@ -11,6 +11,9 @@ from einops import rearrange
 from torch import Tensor
 
 from .crop import E
+
+
+EPS: Final = torch.finfo(torch.float32).eps
 
 
 def make_tensor_like(proto: Tensor, value: Any, expand: bool = False, **kwargs) -> Tensor:
@@ -139,9 +142,12 @@ class Resize:
             (min(H_target / H, W_target / W),) * 2 if preserve_aspect_ratio else (H_target / H, W_target / W)
         )
 
-        # Get new size
-        H_new = int(H * scale_h)
-        W_new = int(W * scale_w)
+        # Get new size, accounting for floating point precision
+        H_new = int(H * scale_h + EPS)
+        W_new = int(W * scale_w + EPS)
+        assert (preserve_aspect_ratio and (H_new == H_target or W_new == W_target)) or (
+            not preserve_aspect_ratio and (H_new == H_target and W_new == W_target)
+        ), "Resized image size does not match target size"
         result_dict["resized_h"] = H_new
         result_dict["resized_w"] = W_new
 
