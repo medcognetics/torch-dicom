@@ -10,12 +10,12 @@ authors = [
   { name = "Scott Chase Waggener", email = "tidalpaladin@protonmail.com" },
 ]
 dependencies = [
-    "einops",
-    "torch>=1.11.0",
-    "pandas",
-    "dicom-utils",
-    "torchvision>=0.16.0",
-    "StrEnum>=0.4.15",
+  "einops",
+  "torch>=1.11.0",
+  "pandas",
+  "dicom-utils",
+  "torchvision>=0.16.0",
+  "StrEnum>=0.4.15",
 ]
 readme = "README.md"
 license = { text = "Apache" }
