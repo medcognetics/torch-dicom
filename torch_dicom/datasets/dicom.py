@@ -42,6 +42,7 @@ from .path import PathDataset, PathInput
 DUMMY_PATH: Final[Path] = Path("dummy.dcm")
 D = TypeVar("D", bound=Union[Dict[str, Any], TypedDict])
 LIST_COLLATE_TYPES: Final = (Path, FileRecord, Dicom, str, dict)
+PIXEL_ATTRIBUTES: Final = ("PixelData", "_pixel_array")
 
 
 class DicomExample(TypedDict):
@@ -382,18 +383,31 @@ class DicomInput(IterableDataset, SupportsTransform):
         # Ensure that the path is set to DUMMY_PATH
         rec = replace(rec, path=DUMMY_PATH)
 
-        # Copy the dicom object to avoid modifying the original and remove the pixel data.
-        # We first do a shallow copy to remove pixel data followed by a deep copy.
-        dcm = dcm.copy()
-        delattr(dcm, "PixelData")
-        delattr(dcm, "_pixel_array")
-        dcm = deepcopy(dcm)
+        # We want to copy dcm before removing the pixel attributes so that we don't modify the original.
+        # However it seems that copy is not sufficient for this, as updating the copy also updates the original.
+        # We also don't want to use deepcopy on pixel data because this is expensive.
+        # So we do the following:
+        #
+        # 1. Store the original attributes
+        original_pixel_attributes = {
+            attr_name: getattr(dcm, attr_name) for attr_name in PIXEL_ATTRIBUTES if hasattr(dcm, attr_name)
+        }
+        # 2. Remove the pixel attributes
+        for attr_name in PIXEL_ATTRIBUTES:
+            delattr(dcm, attr_name)
+        # 3. Run deepcopy minus the pixel attributes
+        dcm_copy = deepcopy(dcm)
+        # 4. Restore the original attributes to the original
+        for attr_name, attr_value in original_pixel_attributes.items():
+            setattr(dcm, attr_name, attr_value)
+        assert hasattr(dcm, "PixelData")
+        assert not hasattr(dcm_copy, "PixelData")
 
         result = {
             "img": pixels,
             "img_size": img_size_tensor,
             "record": rec,
-            "dicom": dcm,
+            "dicom": dcm_copy,
         }
         return cast(DicomExample, result)
 

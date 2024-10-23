@@ -5,17 +5,17 @@ build-backend = "pdm.pep517.api"
 [project]
 name = "torch-dicom"
 description = ""
-requires-python = ">=3.9,<3.12"
+requires-python = ">=3.10,<3.12"
 authors = [
   { name = "Scott Chase Waggener", email = "tidalpaladin@protonmail.com" },
 ]
 dependencies = [
   "einops",
-  "torch>=1.11.0",
+  "torch",
   "pandas",
   "dicom-utils",
-  "torchvision>=0.16.0",
-  "StrEnum>=0.4.15",
+  "torchvision",
+  "StrEnum",
 ]
 readme = "README.md"
 license = { text = "Apache" }
