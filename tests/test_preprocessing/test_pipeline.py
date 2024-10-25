@@ -21,7 +21,7 @@ class TestPreprocessingPipeline:
     @pytest.mark.parametrize("rescale", [False, True])
     def test_preprocess_dicom(self, tmp_path, dicoms, dicom_iterator, file_iterator, voi_lut, inversion, rescale):
         dicoms = deepcopy(dicoms)
-        pipeline = PreprocessingPipeline(file_iterator, dicom_iterator, output_format=OutputFormat.DICOM)
+        pipeline = PreprocessingPipeline(file_iterator, dicom_iterator, output_format=OutputFormat.DICOM, num_workers=2)
         dest = Path(tmp_path, "output")
         dest.mkdir()
 
@@ -68,6 +68,7 @@ class TestPreprocessingPipeline:
             output_format=output_format,
             volume_handler=ReduceVolume(),
             compression=compression,
+            num_workers=2,
         )
         dest = Path(tmp_path, "output")
         dest.mkdir()

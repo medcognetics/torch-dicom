@@ -5,7 +5,7 @@
 groups = ["default", "datamodule", "j2k", "quality", "test"]
 strategy = ["inherit_metadata"]
 lock_version = "4.5.0"
-content_hash = "sha256:a8032b9f0e5a4788637ca853a7b8e25dcd995db27c30579692058db429761c2e"
+content_hash = "sha256:80ba45e773671ddc29314cf12658a0eb5ca1d227d1c99e69295f9ae80011ad3e"
 
 [[metadata.targets]]
 requires_python = ">=3.10,<3.12"
@@ -421,7 +421,9 @@ files = [
 [[package]]
 name = "dicom-utils"
 version = "1.0.3"
-requires_python = "<3.12,>=3.10"
+requires_python = ">=3.10,<3.12"
+git = "https://github.com/medcognetics/dicom-utils.git"
+revision = "cda99b9dcc3b801f641446fc36f4e2e2afff9a73"
 summary = ""
 groups = ["default"]
 dependencies = [
@@ -437,10 +439,6 @@ dependencies = [
     "pylibjpeg-openjpeg",
     "python-gdcm>=3.0.10",
     "tqdm-multiprocessing",
-]
-files = [
-    {file = "dicom-utils-1.0.3.tar.gz", hash = "sha256:fb18a4642eb97337c35db3c48f950c5495bfec737e08796f9f7f7c0fca0139fd"},
-    {file = "dicom_utils-1.0.3-py3-none-any.whl", hash = "sha256:087d981e394f07c36d803cb6363dcb44ac2d0d24d341220b73e2cb08e277ec13"},
 ]
 
 [[package]]
@@ -1427,14 +1425,13 @@ files = [
 
 [[package]]
 name = "pydicom"
-version = "3.0.1"
+version = "3.1.0.dev0"
 requires_python = ">=3.10"
+git = "https://github.com/medcognetics/pydicom.git"
+ref = "fix/pickle"
+revision = "52ab079e2ba5dbc5754f510917ced504bd532d68"
 summary = "A pure Python package for reading and writing DICOM data"
 groups = ["default"]
-files = [
-    {file = "pydicom-3.0.1-py3-none-any.whl", hash = "sha256:db32f78b2641bd7972096b8289111ddab01fb221610de8d7afa835eb938adb41"},
-    {file = "pydicom-3.0.1.tar.gz", hash = "sha256:7b8be344b5b62493c9452ba6f5a299f78f8a6ab79786c729b0613698209603ec"},
-]
 
 [[package]]
 name = "pyflakes"

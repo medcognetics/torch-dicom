@@ -32,6 +32,7 @@ def dicoms(dicom_size):
     # Ensure we have a mix of inversions
     dicoms[0].PhotometricInterpretation = "MONOCHROME1"
     dicoms[1].PhotometricInterpretation = "MONOCHROME2"
+    dicoms[0].LUTDescriptor = b"LUT Descriptor"
 
     # Ensure we have a mix of TSUIDs
     tsuids = (ImplicitVRLittleEndian, ExplicitVRLittleEndian, RLELossless)

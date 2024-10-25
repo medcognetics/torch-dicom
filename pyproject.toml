@@ -10,12 +10,14 @@ authors = [
   { name = "Scott Chase Waggener", email = "tidalpaladin@protonmail.com" },
 ]
 dependencies = [
-  "einops",
-  "torch",
-  "pandas",
-  "dicom-utils",
-  "torchvision",
-  "StrEnum",
+    "einops",
+    "torch",
+    "pandas",
+    "dicom-utils @ git+https://github.com/medcognetics/dicom-utils.git",
+    "torchvision",
+    "StrEnum",
+    # TODO: Remove this once pydicom fixes their pickle issue
+    "pydicom @ git+https://github.com/medcognetics/pydicom.git@fix/pickle",
 ]
 readme = "README.md"
 license = { text = "Apache" }
