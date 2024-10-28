@@ -11,13 +11,29 @@ from dicom_utils.container import MammogramFileRecord
 from dicom_utils.dicom import Dicom
 from dicom_utils.dicom_factory import DicomFactory
 from dicom_utils.volume import KeepVolume, ReduceVolume
+from pydicom.data import get_testdata_file
 from torch import Tensor
 from torch.utils.data import DataLoader
 from torchvision.transforms.v2 import ColorJitter
 from torchvision.tv_tensors import Image, Video
 
 import torch_dicom
-from torch_dicom.datasets.dicom import DUMMY_PATH, DicomInput, DicomPathDataset, DicomPathInput, collate_fn, uncollate
+from torch_dicom.datasets.dicom import (
+    DUMMY_PATH,
+    DicomInput,
+    DicomPathDataset,
+    DicomPathInput,
+    collate_fn,
+    copy_dicom_without_pixel_data,
+    uncollate,
+)
+
+
+def test_copy_dicom_without_pixel_data():
+    dcm = cast(Dicom, get_testdata_file("CT_small.dcm", read=True))
+    copy = copy_dicom_without_pixel_data(dcm)
+    assert not hasattr(copy, "PixelData")
+    assert hasattr(dcm, "PixelData")
 
 
 class TestUncollate:

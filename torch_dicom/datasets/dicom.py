@@ -194,6 +194,35 @@ def slice_iterable_for_multiprocessing(iterable: Iterable[Any]) -> Iterable[Any]
         return iterable
 
 
+def copy_dicom_without_pixel_data(dcm: Dicom) -> Dicom:
+    r"""Copies a DICOM object without the pixel data.
+
+    Args:
+        dcm: DICOM object.
+
+    Returns:
+        A deepcopy of the DICOM object without the pixel data.
+    """
+    # We want to copy dcm before removing the pixel attributes so that we don't modify the original.
+    # However it seems that copy is not sufficient for this, as updating the copy also updates the original.
+    # We also don't want to use deepcopy on pixel data because this is expensive.
+    # So we do the following:
+    #
+    # 1. Store the original attributes
+    original_pixel_attributes = {
+        attr_name: getattr(dcm, attr_name) for attr_name in PIXEL_ATTRIBUTES if hasattr(dcm, attr_name)
+    }
+    # 2. Remove the pixel attributes
+    for attr_name in PIXEL_ATTRIBUTES:
+        delattr(dcm, attr_name)
+    # 3. Run deepcopy minus the pixel attributes
+    dcm_copy = deepcopy(dcm)
+    # 4. Restore the original attributes to the original
+    for attr_name, attr_value in original_pixel_attributes.items():
+        setattr(dcm, attr_name, attr_value)
+    return dcm_copy
+
+
 class DicomInput(IterableDataset, SupportsTransform):
     r"""Dataset that iterates over DICOM objects and yields a metadata dictionary.
 
@@ -383,31 +412,11 @@ class DicomInput(IterableDataset, SupportsTransform):
         # Ensure that the path is set to DUMMY_PATH
         rec = replace(rec, path=DUMMY_PATH)
 
-        # We want to copy dcm before removing the pixel attributes so that we don't modify the original.
-        # However it seems that copy is not sufficient for this, as updating the copy also updates the original.
-        # We also don't want to use deepcopy on pixel data because this is expensive.
-        # So we do the following:
-        #
-        # 1. Store the original attributes
-        original_pixel_attributes = {
-            attr_name: getattr(dcm, attr_name) for attr_name in PIXEL_ATTRIBUTES if hasattr(dcm, attr_name)
-        }
-        # 2. Remove the pixel attributes
-        for attr_name in PIXEL_ATTRIBUTES:
-            delattr(dcm, attr_name)
-        # 3. Run deepcopy minus the pixel attributes
-        dcm_copy = deepcopy(dcm)
-        # 4. Restore the original attributes to the original
-        for attr_name, attr_value in original_pixel_attributes.items():
-            setattr(dcm, attr_name, attr_value)
-        assert hasattr(dcm, "PixelData")
-        assert not hasattr(dcm_copy, "PixelData")
-
         result = {
             "img": pixels,
             "img_size": img_size_tensor,
             "record": rec,
-            "dicom": dcm_copy,
+            "dicom": copy_dicom_without_pixel_data(dcm),
         }
         return cast(DicomExample, result)
 
