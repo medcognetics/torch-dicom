@@ -13,7 +13,7 @@ dependencies = [
     "einops",
     "torch",
     "pandas",
-    "dicom-utils @ git+https://github.com/medcognetics/dicom-utils.git",
+    "dicom-utils",
     "torchvision",
     "StrEnum",
     # TODO: Remove this once pydicom fixes their pickle issue

@@ -5,7 +5,7 @@
 groups = ["default", "datamodule", "j2k", "quality", "test"]
 strategy = ["inherit_metadata"]
 lock_version = "4.5.0"
-content_hash = "sha256:80ba45e773671ddc29314cf12658a0eb5ca1d227d1c99e69295f9ae80011ad3e"
+content_hash = "sha256:d4ac1cf24a25be4a59a32036dc2b2ea4bc1210b0f3da6a53ee0e0082f217396d"
 
 [[metadata.targets]]
 requires_python = ">=3.10,<3.12"
@@ -420,10 +420,8 @@ files = [
 
 [[package]]
 name = "dicom-utils"
-version = "1.0.3"
-requires_python = ">=3.10,<3.12"
-git = "https://github.com/medcognetics/dicom-utils.git"
-revision = "cda99b9dcc3b801f641446fc36f4e2e2afff9a73"
+version = "1.0.5"
+requires_python = "<3.13,>=3.10"
 summary = ""
 groups = ["default"]
 dependencies = [
@@ -439,6 +437,10 @@ dependencies = [
     "pylibjpeg-openjpeg",
     "python-gdcm>=3.0.10",
     "tqdm-multiprocessing",
+]
+files = [
+    {file = "dicom-utils-1.0.5.tar.gz", hash = "sha256:d51ebbeac919431f60e16f6a58dfc59fbcf6630ae72941073d438e7787752e10"},
+    {file = "dicom_utils-1.0.5-py3-none-any.whl", hash = "sha256:b72125acf4037e741271405faef3627937193b9ecc5fee6719bb7512f63b0c2a"},
 ]
 
 [[package]]
