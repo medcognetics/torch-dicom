@@ -205,10 +205,9 @@ class PreprocessingPipeline:
         dest_path = dest / "images" / relative_dest
         dest_path.parent.mkdir(exist_ok=True, parents=True)
         if output_format == OutputFormat.DICOM:
-            dicom.save_as(dest_path, write_like_original=False)
+            dicom.save_as(dest_path, enforce_file_format=False)
         elif output_format in (OutputFormat.PNG, OutputFormat.TIFF):
             img = result["img"]
-            img.squeeze_(0)
             dtype = cast(np.dtype, np.uint16 if dicom.BitsAllocated == 16 else np.uint8)
             save_image(img, dest_path, dtype, compression)
         else:

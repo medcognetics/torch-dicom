@@ -10,6 +10,7 @@ from PIL import Image as PILImage
 from torch import Tensor
 from torch.utils.data import IterableDataset
 from torchvision.tv_tensors import Image as TVImage
+from einops import rearrange
 
 from .dicom import filter_collatable_types, slice_iterable_for_multiprocessing
 from .helpers import SupportsTransform, Transform, normalize_pixels
@@ -37,13 +38,19 @@ def save_image(
         compression: Compression argument passed to ``PIL.Image.save``.
 
     Shapes:
-        * ``img``: :math:`(C, H, W)` or :math:`(H, W)`
+        * ``img``: :math:`(C, H, W)`, :math:`(H, W)`, or :math:`(C, D, H, W)`
     """
     # Convert to channels last, squeeze C=1 if necessary
-    if img.ndim == 3 and img.shape[0] == 1:
-        img = img.squeeze(0)
-    if img.ndim == 3:
-        img = img.movedim(0, -1)
+    if (is_volume := img.ndim == 4):
+        if path.suffix.lower() != ".tiff":
+            raise ValueError("Volumes can only be saved as TIFFs")
+        img = rearrange(img, "c d h w -> d h w c")
+    elif img.ndim == 3:
+        img = rearrange(img, "c h w -> h w c")
+    elif img.ndim == 2:
+        img = rearrange(img, "h w -> h w ()")
+    else:
+        raise ValueError(f"Unsupported number of dimensions: {img.ndim}")
 
     # Convert floating point inputs to the specified dtype
     if torch.is_floating_point(img):
@@ -55,12 +62,18 @@ def save_image(
     else:
         img_np = img.numpy()
 
-    if dtype == np.uint16 and img.ndim == 3:
+    if dtype == np.uint16 and img.shape[-1] != 1:
         raise ValueError("Saving 3-channel uint16 images is not supported")  # pragma: no cover
 
+    # Create and save PIL image
     pil_mode = "I;16" if dtype == np.uint16 else None
-    pil_img = PILImage.fromarray(img_np, mode=pil_mode)
-    pil_img.save(str(path), compression=compression)
+    if is_volume:
+        assert path.suffix.lower() == ".tiff"
+        pil_img = [PILImage.fromarray(frame, mode=pil_mode) for frame in img_np]
+        pil_img[0].save(str(path), compression=compression, save_all=True, append_images=pil_img[1:])
+    else:
+        pil_img = PILImage.fromarray(img_np, mode=pil_mode)
+        pil_img.save(str(path), compression=compression, save_all=True)
 
 
 def load_image(inp: Union[PILImage.Image, Path]) -> TVImage:

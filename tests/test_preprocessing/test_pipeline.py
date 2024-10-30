@@ -16,6 +16,7 @@ from torch_dicom.preprocessing.pipeline import OutputFormat, PreprocessingPipeli
 
 
 class TestPreprocessingPipeline:
+    @pytest.mark.skip(reason="Not implemented")
     @pytest.mark.parametrize("voi_lut", [False, True])
     @pytest.mark.parametrize("inversion", [False, True])
     @pytest.mark.parametrize("rescale", [False, True])

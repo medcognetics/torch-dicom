@@ -9,7 +9,7 @@ from torch.utils.data import Dataset
 from torchvision.transforms.v2 import RandomHorizontalFlip
 from torchvision.tv_tensors import BoundingBoxes, BoundingBoxFormat
 
-from torch_dicom.datasets import DicomPathDataset, collate_fn
+from torch_dicom.datasets import DicomPathDataset, collate_fn, ImagePathDataset
 from torch_dicom.datasets.metadata import (
     BoundingBoxMetadata,
     DataFrameMetadata,
@@ -128,15 +128,15 @@ class TestPreprocessingConfigMetadata:
     @pytest.fixture(scope="class")
     def preprocessed_data(self, tmp_path_factory, dicoms):
         dest = tmp_path_factory.mktemp("data")
-        pipeline = PreprocessingPipeline(dicoms=dicoms, output_format=OutputFormat.DICOM)
+        pipeline = PreprocessingPipeline(dicoms=dicoms, output_format=OutputFormat.TIFF)
         out_files = pipeline(dest)
         assert out_files
         return dest
 
     @pytest.fixture(scope="class")
     def dataset(self, preprocessed_data) -> Dataset:
-        paths = preprocessed_data.rglob("*.dcm")
-        dataset = DicomPathDataset(paths)
+        paths = preprocessed_data.rglob("*.tiff")
+        dataset = ImagePathDataset(paths)
         assert len(dataset), "Failed to create dataset"
         return dataset
 
