@@ -50,6 +50,7 @@ class DicomExample(TypedDict):
     img_size: Tensor
     record: DicomImageFileRecord
     dicom: Dicom
+    tv_type: str
 
 
 def _collate_tensor_with_broadcast(batch: Sequence[Tensor], collate_fn_map: Dict) -> Tensor:
@@ -405,6 +406,7 @@ class DicomInput(IterableDataset, SupportsTransform):
         # Wrap image as a TV tensor - Image for 2D, Video for 3D
         assert 3 <= pixels.ndim <= 4, f"Expected 3 or 4 dims, got {pixels.ndim}"
         pixels = (Image if pixels.ndim == 3 else Video)(pixels)
+        print(pixels.shape)
 
         creator = RecordCreator()
         rec = creator(DUMMY_PATH, dcm)

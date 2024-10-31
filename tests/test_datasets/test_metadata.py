@@ -9,7 +9,7 @@ from torch.utils.data import Dataset
 from torchvision.transforms.v2 import RandomHorizontalFlip
 from torchvision.tv_tensors import BoundingBoxes, BoundingBoxFormat
 
-from torch_dicom.datasets import DicomPathDataset, collate_fn, ImagePathDataset
+from torch_dicom.datasets import ImagePathDataset, collate_fn
 from torch_dicom.datasets.metadata import (
     BoundingBoxMetadata,
     DataFrameMetadata,
@@ -186,15 +186,15 @@ class TestBoundingBoxMetadata:
             MinMaxCrop(),
             Resize((512, 384)),
         ]
-        pipeline = PreprocessingPipeline(dicoms=dicoms, transforms=transforms, output_format=OutputFormat.DICOM)
+        pipeline = PreprocessingPipeline(dicoms=dicoms, transforms=transforms, output_format=OutputFormat.TIFF)
         out_files = pipeline(dest)
         assert out_files
         return dest
 
     @pytest.fixture(scope="class")
     def dataset(self, preprocessed_data) -> Dataset:
-        paths = preprocessed_data.rglob("*.dcm")
-        dataset = DicomPathDataset(paths)
+        paths = preprocessed_data.rglob("*.tiff")
+        dataset = ImagePathDataset(paths)
         assert len(dataset), "Failed to create dataset"
         return PreprocessingConfigMetadata(dataset)
 
@@ -243,7 +243,7 @@ class TestBoundingBoxMetadata:
     def test_getitem_with_trace(self, dataset: Dataset, box_data, sopuids_without_boxes):
         wrapper = BoundingBoxMetadata(dataset, box_data, extra_keys=["extra"])
         for example in wrapper:
-            if example["record"].SOPInstanceUID not in sopuids_without_boxes:
+            if example["path"].stem not in sopuids_without_boxes:
                 break
         else:
             raise AssertionError("No example with boxes found")
@@ -260,7 +260,7 @@ class TestBoundingBoxMetadata:
     def test_getitem_without_trace(self, dataset: Dataset, box_data, sopuids_without_boxes):
         wrapper = BoundingBoxMetadata(dataset, box_data)
         for example in wrapper:
-            if example["record"].SOPInstanceUID in sopuids_without_boxes:
+            if example["path"].stem in sopuids_without_boxes:
                 break
         else:
             raise AssertionError("No example without boxes found")
@@ -299,15 +299,15 @@ class TestDataFrameMetadata:
     @pytest.fixture(scope="class")
     def preprocessed_data(self, tmp_path_factory, dicoms):
         dest = tmp_path_factory.mktemp("data")
-        pipeline = PreprocessingPipeline(dicoms=dicoms, output_format=OutputFormat.DICOM)
+        pipeline = PreprocessingPipeline(dicoms=dicoms, output_format=OutputFormat.TIFF)
         out_files = pipeline(dest)
         assert out_files
         return dest
 
     @pytest.fixture(scope="class")
     def dataset(self, preprocessed_data) -> Dataset:
-        paths = preprocessed_data.rglob("*.dcm")
-        dataset = DicomPathDataset(paths)
+        paths = preprocessed_data.rglob("*.tiff")
+        dataset = ImagePathDataset(paths)
         assert len(dataset), "Failed to create dataset"
         return dataset
 
@@ -346,7 +346,7 @@ class TestDataFrameMetadata:
         H, W = dicom_size
         wrapper = DataFrameMetadata(dataset, metadata)
         for example in wrapper:
-            if example["record"].SOPInstanceUID not in sopuids_without_boxes:
+            if example["path"].stem not in sopuids_without_boxes:
                 break
         else:
             raise AssertionError("No example with metadata found")
@@ -357,7 +357,7 @@ class TestDataFrameMetadata:
     def test_getitem_without_metadata(self, dataset: Dataset, metadata: Path, sopuids_without_boxes):
         wrapper = DataFrameMetadata(dataset, metadata)
         for example in wrapper:
-            if example["record"].SOPInstanceUID in sopuids_without_boxes:
+            if example["path"].stem in sopuids_without_boxes:
                 break
         else:
             raise AssertionError("No example without metadata found")

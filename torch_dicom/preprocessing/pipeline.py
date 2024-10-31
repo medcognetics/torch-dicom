@@ -3,19 +3,15 @@
 
 import json
 from dataclasses import dataclass, field
+from enum import StrEnum
 from functools import cached_property
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, Iterator, Sequence, Set, cast
 
 import numpy as np
 import torch
-from dicom_utils.dicom import Dicom, set_pixels
+from dicom_utils.dicom import Dicom
 from dicom_utils.volume import KeepVolume, VolumeHandler
-from pydicom.dataset import FileDataset
-from pydicom.uid import ExplicitVRLittleEndian, ImplicitVRLittleEndian
-
-# TODO Use `from enum import StrEnum` with Python 3.11+
-from strenum import StrEnum  # type:ignore
 from torch import Tensor
 from torch.utils.data import DataLoader
 from tqdm_multiprocessing import ConcurrentMapper
@@ -27,42 +23,7 @@ from ..datasets.image import save_image
 
 class OutputFormat(StrEnum):
     PNG = "png"
-    DICOM = "dcm"
     TIFF = "tiff"
-
-
-def update_dicom(dicom: Dicom, img: Tensor) -> Dicom:
-    if img.ndim > 4:
-        raise ValueError(f"img.ndim = {img.ndim}, expected <= 4")
-    if img.shape[0] != 1:
-        raise ValueError(f"img.shape[0] = {img.shape[0]}, expected 1")
-    if img.is_floating_point():
-        raise ValueError(f"img.dtype = {img.dtype}, expected integer")
-
-    H, W = img.shape[-2:]
-    if img.ndim == 4:
-        img = img.view(1, -1, H, W)
-    else:
-        img = img.view(1, H, W)
-
-    # Copy the dicom
-    dicom = dicom.copy()
-
-    # Update pixel description tags
-    dicom.Rows = H
-    dicom.Columns = W
-    dicom.NumberOfFrames = img.shape[-3]
-
-    # Set TransferSyntaxUID to ExplicitVRLittleEndian if compressed.
-    # This matches what dicom_utils does when decompressing.
-    new_syntax = ImplicitVRLittleEndian if dicom.is_implicit_VR else ExplicitVRLittleEndian
-    dtype = np.uint16 if dicom.BitsAllocated == 16 else np.uint8
-    dicom = set_pixels(cast(FileDataset, dicom), img.cpu().numpy().astype(dtype), syntax=new_syntax)
-
-    # Disabled for performance
-    # assert (dicom.pixel_array == img.cpu().numpy().astype(np.uint16)).all()
-
-    return dicom
 
 
 def recursive_tensor_to_list(x: Dict[str, Any]) -> Dict[str, Any]:
@@ -92,7 +53,8 @@ class PreprocessingPipeline:
         volume_handler: VolumeHandler to use for handling volumes.
         dataloader_kwargs: Additional keyword arguments to pass to the DataLoader.
         use_bar: Whether to use a progress bar for the output threads.
-
+        output_format: Output format to save the images as. Defaults to TIFF.
+        compression: Compression argument passed to :func:`PIL.Image.save`.
     """
 
     dicom_paths: Iterable[Path] = field(default_factory=list)
@@ -108,7 +70,7 @@ class PreprocessingPipeline:
     volume_handler: VolumeHandler = KeepVolume()
     dataloader_kwargs: dict = field(default_factory=dict)
     use_bar: bool = True
-    output_format: OutputFormat = OutputFormat.PNG
+    output_format: OutputFormat = OutputFormat.TIFF
     compression: str | None = None
 
     def __iter__(self) -> Iterator[Dict[str, Any]]:
@@ -119,9 +81,6 @@ class PreprocessingPipeline:
                 img = example["img"]
                 assert isinstance(dicom, Dicom)
                 assert isinstance(img, Tensor)
-                if self.output_format == "dcm":
-                    dicom = update_dicom(dicom, img)
-                    dicom["PixelData"].VR = "OB"
 
                 # Propagate to dict and yield
                 example["dicom"] = dicom
@@ -146,6 +105,10 @@ class PreprocessingPipeline:
                 )
             )
         return result
+
+    @property
+    def image_suffix(self) -> str:
+        return f".{str(self.output_format)}"
 
     def apply_transforms(self, inp: Dict[str, Any]) -> Dict[str, Any]:
         for transform in self.transforms:
@@ -204,14 +167,9 @@ class PreprocessingPipeline:
         # Save image as DICOM or PNG
         dest_path = dest / "images" / relative_dest
         dest_path.parent.mkdir(exist_ok=True, parents=True)
-        if output_format == OutputFormat.DICOM:
-            dicom.save_as(dest_path, enforce_file_format=False)
-        elif output_format in (OutputFormat.PNG, OutputFormat.TIFF):
-            img = result["img"]
-            dtype = cast(np.dtype, np.uint16 if dicom.BitsAllocated == 16 else np.uint8)
-            save_image(img, dest_path, dtype, compression)
-        else:
-            raise ValueError(f"Unknown output format {output_format}")
+        img = result["img"]
+        dtype = cast(np.dtype, np.uint16 if dicom.BitsAllocated == 16 else np.uint8)
+        save_image(img, dest_path, dtype, compression)
 
         # Convert record to dict for JSON serialization
         result["record"] = result["record"].to_dict()

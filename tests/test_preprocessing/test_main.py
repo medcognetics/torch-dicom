@@ -25,7 +25,7 @@ def test_main(tmp_path, files, mocker):
         str(src),
         str(dest),
         "-f",
-        "dcm",
+        "tiff",
     ]
 
     try:

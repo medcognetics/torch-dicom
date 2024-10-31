@@ -176,7 +176,7 @@ class DicomTestFactory:
         kwargs.setdefault("prefetch_factor", None)
         pipeline = PreprocessingPipeline(dicom_files, **kwargs)
         pipeline(dest)
-        return list(dest.rglob("*.png"))
+        return list(dest.rglob(f"*{pipeline.image_suffix}"))
 
     def create_manifest(self, dicom_files: List[Path]) -> pd.DataFrame:
         """
