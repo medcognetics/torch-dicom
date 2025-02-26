@@ -51,7 +51,7 @@ class AddOverlay(Transform):
         if not self.force_in_bounds:
             raise NotImplementedError("`force_in_bounds=False` is not yet implemented")  # pragma: no cover
 
-    def _transform(self, inpt: Any, params: Dict[str, Any]) -> Any:
+    def transform(self, inpt: Any, params: Dict[str, Any]) -> Any:
         if not params["augment"] or not isinstance(inpt, TVImage):
             return inpt
         if inpt.ndim > 3:
@@ -115,7 +115,7 @@ class AddOverlay(Transform):
         inpt[..., bounds[0] : bounds[2], bounds[1] : bounds[3]] = target_for_watermark
         return inpt
 
-    def _get_params(self, flat_inputs: List[Any]) -> Dict[str, Any]:
+    def make_params(self, flat_inputs: List[Any]) -> Dict[str, Any]:
         img = next(iter(i for i in flat_inputs if isinstance(i, TVImage)))
         H, W = img.shape[-2:]
         watermark_idx = int(torch.randint(len(self.paths), ()))
@@ -179,9 +179,9 @@ class AddWatermark(AddOverlay):
         super().__init__(path, p, scale, force_in_bounds, use_bar)
         self.grid_size = grid_size
 
-    def _get_params(self, flat_inputs: List[Any]) -> Dict[str, Any]:
+    def make_params(self, flat_inputs: List[Any]) -> Dict[str, Any]:
         img = next(iter(i for i in flat_inputs if isinstance(i, TVImage)))
-        params = super()._get_params(flat_inputs)
+        params = super().make_params(flat_inputs)
 
         # Select the grid cell where the watermark will be placed
         grid_cell = self._select_grid_cell(img, grid_size=self.grid_size)

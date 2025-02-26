@@ -5,7 +5,7 @@ from typing import Any, Callable, Dict, Final, Iterable, List, Optional, Sequenc
 
 from deep_helpers.data.sampler import ConcatSampler
 from deep_helpers.structs import Mode
-from lightning_fabric.utilities.rank_zero import rank_zero_info
+from lightning_utilities.core.rank_zero import rank_zero_info
 from pytorch_lightning import LightningDataModule
 from torch.utils.data import (
     BatchSampler,
